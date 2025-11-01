@@ -1,0 +1,4 @@
+{
+  "name": "Bitcoin Sentiment Tracker",
+  "description": "A daily Bitcoin sentiment tracker that uses the Gemini API with Google Search grounding to provide up-to-date analysis based on the latest news and market data."
+}
