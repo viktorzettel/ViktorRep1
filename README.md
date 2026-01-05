@@ -1,2 +1,2 @@
-Random projects I am working on. From Bitcoin sentiment trackers to Reinforcement Learning visualizations. 
-Go check: https://realscalesolarsystem.netlify.app to see my first website
+Random projects I am working on. From Bitcoin trackers, R visualizations and space websites. 
+Go check: https://realscalesolarsystem.netlify.app to see my first website.
