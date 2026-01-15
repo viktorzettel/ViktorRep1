@@ -115,6 +115,13 @@ class MarketRegime:
 
 
 class PortfolioArchitect:
+    """
+    Institutional-grade portfolio optimization using Riskfolio-Lib.
+    Strategies:
+    - Safety First: Hierarchical Risk Parity (HRP) - Pure risk management.
+    - Smart Balance: Nested Clustered Optimization (NCO) - Max Sharpe with clustering.
+    - Aggressive: Nested Clustered Optimization (NCO) - Max Return with clustering.
+    """
     def __init__(self, data_manager, force_min_weight=False):
         self.returns = data_manager.returns
         self.n_assets = len(self.returns.columns)
@@ -124,77 +131,110 @@ class PortfolioArchitect:
 
     def build_portfolio(self, objective):
         try:
-            weights, cluster_order = self._build_hrp(objective)
-            self.cluster_order = cluster_order
-            return weights
+            # Create HRP/NCO Portfolio Object
+            port = rp.HCPortfolio(returns=self.returns)
+            
+            # --- STRATEGY SELECTION ---
+            if objective == 'safety_first':
+                # HRP is excellent for safety because it ignores returns and focuses on
+                # de-correlating the portfolio.
+                model = 'HRP'
+                obj = 'MinRisk' # Not used by HRP but kept for consistency
+                rm = 'CVaR'     # Conditional Value at Risk (Safety focus)
+                codependence = 'pearson'
+                
+            elif objective == 'smart_balance':
+                # NCO (Nested Clustered Optimization) is better here.
+                # It clusters assets first, then optimizes for Sharpe *within* clusters.
+                # This prevents the "98% SHY" problem while still being robust.
+                model = 'NCO'
+                obj = 'Sharpe'  # Maximize Sharpe Ratio
+                rm = 'MV'       # Standard Variance
+                codependence = 'pearson'
+
+            elif objective == 'aggressive_growth':
+                # NCO optimized for Maximum Return
+                model = 'NCO'
+                obj = 'MaxRet'  # Maximize Returns
+                rm = 'MV'
+                codependence = 'pearson'
+            
+            else:
+                # Default fallback
+                model = 'HRP'
+                obj = 'MinRisk'
+                rm = 'MV'
+                codependence = 'pearson'
+
+            # --- OPTIMIZATION ---
+            # rf=0.04 (4% risk free rate for Sharpe calc)
+            weights = port.optimization(
+                model=model,
+                rm=rm,
+                obj=obj,
+                codependence=codependence,
+                rf=0.04,
+                linkage='ward',
+                leaf_order=True
+            )
+
+            if weights is None or weights.empty:
+                raise ValueError("Optimization returned empty weights")
+
+            weights_dict = weights.iloc[:, 0].to_dict()
+            
+            # --- CONSTRAINTS (Min/Max Logic) ---
+            # 1. Force Minimum Weight (5%)
+            if self.force_min_weight:
+                min_w = 0.05
+                below_min = {k: v for k, v in weights_dict.items() if v < min_w}
+                above_min = {k: v for k, v in weights_dict.items() if v >= min_w}
+                
+                if below_min:
+                    deficit = sum(min_w - v for v in below_min.values())
+                    surplus = sum(v - min_w for v in above_min.values())
+                    if surplus > 0: # Avoid div/0
+                        for k in below_min: weights_dict[k] = min_w
+                        reduction_factor = deficit / surplus
+                        for k in above_min: weights_dict[k] -= (weights_dict[k] - min_w) * reduction_factor
+
+            # 2. Cap Max Weight (Aggressive only)
+            if objective == 'aggressive_growth':
+                max_w = 0.35
+                excess = sum(max(0, v - max_w) for v in weights_dict.values())
+                if excess > 0:
+                    for k in weights_dict:
+                        if weights_dict[k] > max_w: weights_dict[k] = max_w
+                    
+                    below_max = {k: v for k, v in weights_dict.items() if v < max_w}
+                    if below_max:
+                        total_below = sum(below_max.values())
+                        if total_below > 0:
+                            for k in below_max: weights_dict[k] += excess * (weights_dict[k] / total_below)
+
+            # --- FINAL CLEANUP ---
+            total = sum(weights_dict.values())
+            # TYPE SAFETY: Cast to float
+            weights_dict = {str(k): round(float(v / total), 4) for k, v in weights_dict.items()}
+
+            # Extract Cluster Order
+            try:
+                if hasattr(port, 'sort_order') and port.sort_order is not None:
+                    raw_order = list(port.sort_order)
+                    self.cluster_order = [str(item) for item in raw_order]
+                else:
+                    self.cluster_order = self.tickers
+            except Exception:
+                self.cluster_order = self.tickers
+
+            return weights_dict
+
         except Exception as e:
-            print(f"HRP failed ({str(e)}), falling back to Mean-Variance.")
+            print(f"Optimization failed ({str(e)}), falling back to Simple Mean-Variance.")
             return self._build_mean_variance(objective)
 
-    def _build_hrp(self, objective):
-        port = rp.HCPortfolio(returns=self.returns)
-
-        rm_map = {'safety_first': 'CVaR', 'smart_balance': 'MV', 'aggressive_growth': 'MV'}
-        linkage_map = {'safety_first': 'ward', 'smart_balance': 'ward', 'aggressive_growth': 'single'}
-        
-        rm = rm_map.get(objective, 'MV')
-        linkage = linkage_map.get(objective, 'ward')
-
-        weights = port.optimization(
-            model='HRP', codependence='pearson', rm=rm, rf=0.04, linkage=linkage, leaf_order=True
-        )
-
-        if weights is None or weights.empty:
-            raise ValueError("HRP returned empty weights")
-
-        weights_dict = weights.iloc[:, 0].to_dict()
-        
-        # Logic to force min weights (same as before)
-        if self.force_min_weight:
-            min_w = 0.05
-            below_min = {k: v for k, v in weights_dict.items() if v < min_w}
-            above_min = {k: v for k, v in weights_dict.items() if v >= min_w}
-            
-            if below_min:
-                deficit = sum(min_w - v for v in below_min.values())
-                surplus = sum(v - min_w for v in above_min.values())
-                if surplus >= deficit:
-                    for k in below_min: weights_dict[k] = min_w
-                    reduction_factor = deficit / surplus if surplus > 0 else 0
-                    for k in above_min: weights_dict[k] -= (weights_dict[k] - min_w) * reduction_factor
-
-        # Logic to cap max weights (same as before)
-        if objective == 'aggressive_growth':
-            max_w = 0.35
-            excess = sum(max(0, v - max_w) for v in weights_dict.values())
-            if excess > 0:
-                for k in weights_dict:
-                    if weights_dict[k] > max_w: weights_dict[k] = max_w
-                below_max = {k: v for k, v in weights_dict.items() if v < max_w}
-                if below_max:
-                    total_below = sum(below_max.values())
-                    if total_below > 0:
-                        for k in below_max: weights_dict[k] += excess * (weights_dict[k] / total_below)
-
-        total = sum(weights_dict.values())
-        
-        # TYPE SAFETY: Explicitly cast everything to float
-        weights_dict = {str(k): round(float(v / total), 4) for k, v in weights_dict.items()}
-
-        try:
-            # Safely extract sort order
-            if hasattr(port, 'sort_order') and port.sort_order is not None:
-                # Ensure it's a list of strings, not numpy objects
-                raw_order = list(port.sort_order)
-                cluster_order = [str(item) for item in raw_order]
-            else:
-                cluster_order = self.tickers
-        except Exception:
-            cluster_order = self.tickers
-
-        return weights_dict, cluster_order
-
     def _build_mean_variance(self, objective):
+        # Fallback to standard optimization if clustering fails
         port = rp.Portfolio(returns=self.returns)
         port.assets_stats(method_mu='hist', method_cov='hist')
 
@@ -205,21 +245,21 @@ class PortfolioArchitect:
         port.upperlng = max_w
         port.lowerlng = min_w
 
-        rm = 'MV'
-        obj = 'Sharpe' if objective == 'smart_balance' else 'MinRisk'
-        if objective == 'aggressive_growth': obj = 'MaxRet'
+        if objective == 'safety_first':
+            obj = 'MinRisk'; rm = 'CVaR'
+        elif objective == 'aggressive_growth':
+            obj = 'MaxRet'; rm = 'MV'
+        else:
+            obj = 'Sharpe'; rm = 'MV'
 
         weights = port.optimization(model='Classic', rm=rm, obj=obj, rf=0.04)
-
+        
         if weights is None or weights.empty:
             raise ValueError("Mean-Variance optimization failed")
 
         weights_dict = weights.iloc[:, 0].to_dict()
         total = sum(weights_dict.values())
-        
-        # TYPE SAFETY: Cast to float
         weights_dict = {str(k): round(float(v / total), 4) for k, v in weights_dict.items()}
-
         self.cluster_order = self.tickers
         return weights_dict
 
