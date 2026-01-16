@@ -1,11 +1,11 @@
 fastapi
 uvicorn
 pandas
-numpy
-scipy
+numpy<2.0.0
+scipy<1.14.0
 yfinance
 arch
 pydantic
-riskfolio-lib>=4.0.0
+riskfolio-lib>=5.0.0
 cvxpy
 scikit-learn
