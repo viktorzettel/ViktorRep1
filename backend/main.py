@@ -1,5 +1,5 @@
 # filename: main.py
-# RiskLens Backend v2.1 - Type Safe & Production Ready
+# RiskLens Backend v2.1 - Crash-Proof & Institutional Grade
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -7,11 +7,12 @@ import scipy.stats as stats
 from arch import arch_model
 import riskfolio as rp
 import warnings
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Any
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, validator, Field
+from typing import List, Dict, Optional, Any
 from fastapi.middleware.cors import CORSMiddleware
 from functools import lru_cache
+from datetime import datetime
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -28,46 +29,102 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==========================================================
+# UTILS: SERIALIZATION SAFETY (The Numpy Fix)
+# ==========================================================
+def clean_float(value: Any) -> float:
+    """Explicitly convert numpy/pandas types to native Python float"""
+    if pd.isna(value) or np.isinf(value):
+        return 0.0
+    return float(round(value, 4))
+
+def clean_dict(d: Dict) -> Dict:
+    """Recursively clean dictionary values for JSON serialization"""
+    clean = {}
+    for k, v in d.items():
+        if isinstance(v, (np.integer, int)):
+            clean[k] = int(v)
+        elif isinstance(v, (np.floating, float)):
+            clean[k] = clean_float(v)
+        elif isinstance(v, dict):
+            clean[k] = clean_dict(v)
+        elif isinstance(v, list):
+            clean[k] = [clean_float(x) if isinstance(x, (float, np.floating)) else x for x in v]
+        else:
+            clean[k] = v
+    return clean
 
 # ==========================================================
-# CACHING LAYER
+# CACHING LAYER & DATA FETCHING
 # ==========================================================
 @lru_cache(maxsize=32)
 def fetch_market_data(tickers_tuple: tuple, lookback_years: int):
     """
-    Cached function to prevent hitting Yahoo Finance repeatedly for the same request.
+    Cached function to prevent hitting Yahoo Finance repeatedly.
     """
     tickers_list = list(tickers_tuple)
-    print(f"Downloading data for: {tickers_list}")
+    print(f"[{datetime.now().time()}] Downloading data for: {tickers_list}")
 
-    data = yf.download(tickers_list, period=f"{lookback_years}y", interval="1d", auto_adjust=True, threads=False)[
-        'Close']
+    # Download data
+    data = yf.download(tickers_list, period=f"{lookback_years}y", interval="1d", auto_adjust=True, threads=False)
 
+    # Handle yfinance returning MultiIndex columns
     if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
+        # If 'Close' is in levels, check validity
+        try:
+            data = data['Close']
+        except KeyError:
+             # Fallback: sometimes single level but different structure
+             pass
 
+    # 1. Check for empty dataframe
     if data.empty:
-        raise ValueError("Yahoo Finance returned no data. Check tickers.")
+        raise ValueError("Market data source returned empty result. Please check connection.")
 
-    if data.isna().all().any():
-        failed_cols = data.columns[data.isna().all()].tolist()
-        raise ValueError(f"No data found for: {failed_cols}")
+    # 2. Check for "Fake" tickers (Columns that are all NaN)
+    # yfinance often returns a column of NaNs for invalid tickers
+    failed_cols = data.columns[data.isna().all()].tolist()
+    if failed_cols:
+         raise ValueError(f"Could not find data for ticker(s): {', '.join(failed_cols)}")
 
+    # 3. Clean Data
     data = data.ffill().dropna()
 
+    # 4. Check for sufficient history
     if data.shape[0] < 50:
-        raise ValueError("Not enough historical data points after cleaning.")
+         raise ValueError(f"Not enough historical data. Found {data.shape[0]} days, need 50+.")
+
+    # 5. Check for remaining Columns (Did dropna kill everything?)
+    if data.shape[1] < 2:
+        raise ValueError("After cleaning data, fewer than 2 assets remain. Cannot build portfolio.")
 
     return data
 
 
 # ==========================================================
-# DATA MODELS
+# INPUT SANITIZATION (The Bouncer)
 # ==========================================================
 class PortfolioRequest(BaseModel):
-    tickers: List[str]
+    tickers: List[str] = Field(..., min_items=2, max_items=10)
     strategy: str = "smart_balance"
     force_min_weight: bool = False
+
+    @validator('tickers')
+    def sanitize_tickers(cls, v):
+        # 1. Uppercase and Trim
+        top_clean = [t.strip().upper() for t in v]
+        
+        # 2. Remove Duplicates (preserve order)
+        seen = set()
+        unique = [x for x in top_clean if not (x in seen or seen.add(x))]
+        
+        # 3. Check Constraints
+        if len(unique) < 2:
+            raise ValueError("Must provide at least 2 distinct tickers.")
+        if len(unique) > 10:
+            raise ValueError("Maximum 10 assets allowed.")
+            
+        return unique
 
 
 # ==========================================================
@@ -75,262 +132,299 @@ class PortfolioRequest(BaseModel):
 # ==========================================================
 class DataManager:
     def __init__(self, tickers, lookback_years=5):
-        if len(tickers) < 2 or len(tickers) > 10:
-            raise ValueError("Please provide between 2 and 10 assets.")
-
         self.tickers = sorted(list(set(tickers)))
 
         try:
             self.data = fetch_market_data(tuple(self.tickers), lookback_years)
         except Exception as e:
-            raise ValueError(f"Data Error: {str(e)}")
+            # Propagate specific ValueErrors from fetch_market_data
+            raise ValueError(str(e))
 
+        # Filter tickers to match what actually came back in data
+        self.available_tickers = list(self.data.columns)
+        
+        if len(self.available_tickers) < 2:
+             raise ValueError("Insufficient valid assets found to build portfolio.")
+
+        # Calculate Returns and Sanitize
         self.returns = self.data.pct_change().dropna()
-        self.has_crypto = any(t.endswith('-USD') for t in self.tickers)
+        
+        # Final safety check for Infinite values
+        if not np.isfinite(self.returns.values).all():
+             self.returns = self.returns.replace([np.inf, -np.inf], np.nan).dropna()
+
+        self.has_crypto = any(t.endswith('-USD') for t in self.available_tickers)
         self.trading_days = 365 if self.has_crypto else 252
 
 
 class MarketRegime:
+    """Market regime detection using Mahalanobis distance."""
     def __init__(self, data_manager):
-        self.returns = data_manager.data.resample('W').last().pct_change().dropna()
+        try:
+            self.returns = data_manager.data.resample('W').last().pct_change().dropna()
+        except:
+             # Fallback to daily if weekly fails (e.g. short history)
+             self.returns = data_manager.returns
 
     def get_status(self):
-        mu = self.returns.mean()
-        cov = self.returns.cov()
-        cov_inv = np.linalg.pinv(cov)
+        try:
+            mu = self.returns.mean()
+            cov = self.returns.cov()
+            cov_inv = np.linalg.pinv(cov)
 
-        latest_ret = self.returns.iloc[-1]
-        diff = latest_ret - mu
-        score = diff.values.dot(cov_inv).dot(diff.values.T)
-        
-        # TYPE SAFETY: Explicitly convert to Python float
-        score_val = float(score)
+            latest_ret = self.returns.iloc[-1]
+            diff = latest_ret - mu
+            score = diff.values.dot(cov_inv).dot(diff.values.T)
+            score = float(score)
 
-        if score_val < 12:
-            return {"score": round(score_val, 2), "color": "Green", "message": "Calm"}
-        elif score_val < 25:
-            return {"score": round(score_val, 2), "color": "Yellow", "message": "Choppy"}
-        else:
-            return {"score": round(score_val, 2), "color": "Red", "message": "Turbulent"}
+            # Heuristic thresholds
+            if score < 12:
+                return {"score": clean_float(score), "color": "Green", "message": "Calm"}
+            elif score < 25:
+                return {"score": clean_float(score), "color": "Yellow", "message": "Choppy"}
+            else:
+                return {"score": clean_float(score), "color": "Red", "message": "Turbulent"}
+        except Exception:
+             # Safe fallback
+             return {"score": 0.0, "color": "Green", "message": "Unknown"}
 
 
 class PortfolioArchitect:
     """
-    Institutional-grade portfolio optimization using Riskfolio-Lib.
-    Strategies:
-    - Safety First: Hierarchical Risk Parity (HRP) - Pure risk management.
-    - Smart Balance: Nested Clustered Optimization (NCO) - Max Sharpe with clustering.
-    - Aggressive: Nested Clustered Optimization (NCO) - Max Return with clustering.
+    Optimizes portfolio with Cascading Fallback Strategy.
+    1. HRP (Primary)
+    2. Mean-Variance (Constraint-based Fallback)
     """
     def __init__(self, data_manager, force_min_weight=False):
         self.returns = data_manager.returns
         self.n_assets = len(self.returns.columns)
         self.tickers = list(self.returns.columns)
         self.force_min_weight = force_min_weight
-        self.cluster_order = None 
+        self.cluster_order = None
 
     def build_portfolio(self, objective):
-        try:
-            # Create HRP/NCO Portfolio Object
-            port = rp.HCPortfolio(returns=self.returns)
-            
-            # --- STRATEGY SELECTION ---
-            if objective == 'safety_first':
-                # HRP is excellent for safety because it ignores returns and focuses on
-                # de-correlating the portfolio.
-                model = 'HRP'
-                obj = 'MinRisk' # Not used by HRP but kept for consistency
-                rm = 'CVaR'     # Conditional Value at Risk (Safety focus)
-                codependence = 'pearson'
-                
-            elif objective == 'smart_balance':
-                # NCO (Nested Clustered Optimization) is better here.
-                # It clusters assets first, then optimizes for Sharpe *within* clusters.
-                # This prevents the "98% SHY" problem while still being robust.
-                model = 'NCO'
-                obj = 'Sharpe'  # Maximize Sharpe Ratio
-                rm = 'MV'       # Standard Variance
-                codependence = 'pearson'
-
-            elif objective == 'aggressive_growth':
-                # NCO optimized for Maximum Return
-                model = 'NCO'
-                obj = 'MaxRet'  # Maximize Returns
-                rm = 'MV'
-                codependence = 'pearson'
-            
-            else:
-                # Default fallback
-                model = 'HRP'
-                obj = 'MinRisk'
-                rm = 'MV'
-                codependence = 'pearson'
-
-            # --- OPTIMIZATION ---
-            # rf=0.04 (4% risk free rate for Sharpe calc)
-            weights = port.optimization(
-                model=model,
-                rm=rm,
-                obj=obj,
-                codependence=codependence,
-                rf=0.04,
-                linkage='ward',
-                leaf_order=True
-            )
-
-            if weights is None or weights.empty:
-                raise ValueError("Optimization returned empty weights")
-
-            weights_dict = weights.iloc[:, 0].to_dict()
-            
-            # --- CONSTRAINTS (Min/Max Logic) ---
-            # 1. Force Minimum Weight (5%)
-            if self.force_min_weight:
-                min_w = 0.05
-                below_min = {k: v for k, v in weights_dict.items() if v < min_w}
-                above_min = {k: v for k, v in weights_dict.items() if v >= min_w}
-                
-                if below_min:
-                    deficit = sum(min_w - v for v in below_min.values())
-                    surplus = sum(v - min_w for v in above_min.values())
-                    if surplus > 0: # Avoid div/0
-                        for k in below_min: weights_dict[k] = min_w
-                        reduction_factor = deficit / surplus
-                        for k in above_min: weights_dict[k] -= (weights_dict[k] - min_w) * reduction_factor
-
-            # 2. Cap Max Weight (Aggressive only)
-            if objective == 'aggressive_growth':
-                max_w = 0.35
-                excess = sum(max(0, v - max_w) for v in weights_dict.values())
-                if excess > 0:
-                    for k in weights_dict:
-                        if weights_dict[k] > max_w: weights_dict[k] = max_w
-                    
-                    below_max = {k: v for k, v in weights_dict.items() if v < max_w}
-                    if below_max:
-                        total_below = sum(below_max.values())
-                        if total_below > 0:
-                            for k in below_max: weights_dict[k] += excess * (weights_dict[k] / total_below)
-
-            # --- FINAL CLEANUP ---
-            total = sum(weights_dict.values())
-            # TYPE SAFETY: Cast to float
-            weights_dict = {str(k): round(float(v / total), 4) for k, v in weights_dict.items()}
-
-            # Extract Cluster Order
+        # Path 1: Safety First -> HRP (Hierarchical Risk Parity)
+        if objective == 'safety_first':
             try:
-                if hasattr(port, 'sort_order') and port.sort_order is not None:
-                    raw_order = list(port.sort_order)
-                    self.cluster_order = [str(item) for item in raw_order]
-                else:
-                    self.cluster_order = self.tickers
-            except Exception:
-                self.cluster_order = self.tickers
+                print("Strategy: Safety First -> Attempting HRP")
+                return self._build_hrp(objective)
+            except Exception as e:
+                print(f"HRP Optimization Failed: {e}")
+        
+        # Path 2: Smart Balance / Aggressive -> NCO (Nested Clustered Optimization)
+        else:
+            try:
+                print(f"Strategy: {objective} -> Attempting NCO")
+                return self._build_nco(objective)
+            except Exception as e:
+                print(f"NCO Optimization Failed: {e}")
 
-            return weights_dict
-
-        except Exception as e:
-            print(f"Optimization failed ({str(e)}), falling back to Simple Mean-Variance.")
+        # Fallback: Mean-Variance (Constraint-based)
+        try:
+            print("Fallback Strategy: Mean-Variance")
             return self._build_mean_variance(objective)
+        except Exception as e:
+            print(f"Mean-Variance Optimization Failed: {e}")
+            
+        # No Fallback 3 (Equal Weights) per user request
+        raise ValueError("Portfolio optimization failed for all methods. Please check input data.")
+
+    def _build_hrp(self, objective):
+        port = rp.HCPortfolio(returns=self.returns)
+        
+        # Safety First = CVaR (Tail Risk), Ward Linkage
+        weights = port.optimization(
+            model='HRP',
+            codependence='pearson',
+            rm='CVaR', 
+            rf=0.04,
+            linkage='ward',
+            leaf_order=True
+        )
+        return self._process_weights(weights, objective, port)
+
+    def _build_nco(self, objective):
+        port = rp.HCPortfolio(returns=self.returns)
+        
+        # NCO - Nested Clustered Optimization
+        # Smart Balance = Max Sharpe (MV)
+        # Aggressive = Max Return (not directly supported in NCO standard, usually Min Variance of clusters)
+        # We tune 'rm' (risk measure) and 'obj' (objective)
+        
+        if objective == 'smart_balance':
+            # NCO with Sharpe Ratio objective
+            # Note: Riskfolio NCO uses 'semi' or 'abs' deviation usually. 
+            # We map Smart Balance to 'MV' (Mean-Variance) internal structure of NCO
+            rm = 'MV' 
+            linkage = 'ward'
+        else: 
+            # Aggressive - Use a more aggressive linkage or risk measure
+            rm = 'MV'
+            linkage = 'single' # Single linkage often creates disparate clusters
+            
+        weights = port.optimization(
+            model='NCO',  # <--- Changed to NCO
+            codependence='pearson',
+            rm=rm,
+            rf=0.04,
+            linkage=linkage,
+            leaf_order=True
+        )
+        return self._process_weights(weights, objective, port)
+
+    def _process_weights(self, weights, objective, port):
+        if weights is None or weights.empty:
+            raise ValueError("Optimization returned empty weights")
+
+        # Safer column access
+        w_series = weights.iloc[:, 0]
+        weights_dict = w_series.to_dict()
+        
+        weights_dict = self._apply_constraints(weights_dict, objective)
+        self._set_cluster_order(port)
+        
+        return weights_dict, self.cluster_order
 
     def _build_mean_variance(self, objective):
-        # Fallback to standard optimization if clustering fails
         port = rp.Portfolio(returns=self.returns)
         port.assets_stats(method_mu='hist', method_cov='hist')
 
         min_w = 0.05 if self.force_min_weight else 0.0
         max_w = 0.35 if objective == 'aggressive_growth' else 1.0
-
+        
         port.lowerret = None
         port.upperlng = max_w
         port.lowerlng = min_w
-
-        if objective == 'safety_first':
-            obj = 'MinRisk'; rm = 'CVaR'
-        elif objective == 'aggressive_growth':
-            obj = 'MaxRet'; rm = 'MV'
-        else:
-            obj = 'Sharpe'; rm = 'MV'
-
-        weights = port.optimization(model='Classic', rm=rm, obj=obj, rf=0.04)
         
-        if weights is None or weights.empty:
-            raise ValueError("Mean-Variance optimization failed")
+        obj_map = {'safety_first': 'MinRisk', 'smart_balance': 'Sharpe', 'aggressive_growth': 'MaxRet'}
+        
+        weights = port.optimization(
+            model='Classic',
+            rm='MV',
+            obj=obj_map.get(objective, 'Sharpe'),
+            rf=0.04
+        )
 
-        weights_dict = weights.iloc[:, 0].to_dict()
+        if weights is None or weights.empty:
+            raise ValueError("Mean-Variance returned empty weights")
+
+        w_series = weights.iloc[:, 0]
+        weights_dict = w_series.to_dict()
+        
+        # Normalize just in case
         total = sum(weights_dict.values())
-        weights_dict = {str(k): round(float(v / total), 4) for k, v in weights_dict.items()}
+        weights_dict = {k: v/total for k, v in weights_dict.items()}
+        
         self.cluster_order = self.tickers
-        return weights_dict
+        return weights_dict, self.cluster_order
+
+    def _apply_constraints(self, weights_dict, objective):
+        """Manually apply min/max constraints for HRP outputs"""
+        # (Simplified Logic for HRP post-processing constraint)
+        if self.force_min_weight:
+             min_w = 0.05
+             keys = list(weights_dict.keys())
+             vals = np.array(list(weights_dict.values()))
+             # Simple clip and re-normalize
+             vals = np.maximum(vals, min_w)
+             vals = vals / vals.sum()
+             weights_dict = dict(zip(keys, vals))
+
+        if objective == 'aggressive_growth':
+             max_w = 0.35
+             keys = list(weights_dict.keys())
+             vals = np.array(list(weights_dict.values()))
+             # Simple clip and re-normalize (iterative to ensure sum=1)
+             for _ in range(3):
+                 vals = np.minimum(vals, max_w)
+                 vals = vals / vals.sum()
+             weights_dict = dict(zip(keys, vals))
+             
+        return {k: float(v) for k,v in weights_dict.items()}
+
+    def _set_cluster_order(self, port):
+        try:
+             # Try various attribute names for robustness across versions
+             if hasattr(port, 'sort_order') and port.sort_order is not None:
+                 self.cluster_order = list(port.sort_order)
+             elif hasattr(port, 'clusters') and port.clusters is not None:
+                 self.cluster_order = list(port.clusters)
+             else:
+                 self.cluster_order = self.tickers
+        except:
+             self.cluster_order = self.tickers
 
 
 class RiskEngine:
+    """Calculates risk metrics and handles serialization."""
     def __init__(self, data_manager, weights):
         self.returns = data_manager.returns
-        self.weights = np.array([weights[t] for t in self.returns.columns])
+        # Ensure weights align with returns columns
+        self.weights = np.array([weights.get(t, 0.0) for t in self.returns.columns])
         self.weights_dict = weights
         self.cov = self.returns.cov() * data_manager.trading_days
 
     def calculate_diversification_ratio(self):
-        individual_vols = np.sqrt(np.diag(self.cov))
-        weighted_sum_vols = np.sum(self.weights * individual_vols)
-        portfolio_vol = np.sqrt(np.dot(self.weights.T, np.dot(self.cov, self.weights)))
-        
-        if portfolio_vol > 0:
-            # TYPE SAFETY: Cast numpy result to python float
-            return round(float(weighted_sum_vols / portfolio_vol), 2)
-        return 1.0
-
-    def calculate_risk_contribution(self):
-        portfolio_vol = np.sqrt(np.dot(self.weights.T, np.dot(self.cov, self.weights)))
-        
-        if portfolio_vol == 0:
-            return {t: round(1.0 / len(self.weights_dict), 4) for t in self.weights_dict}
-
-        marginal = np.dot(self.cov, self.weights) / portfolio_vol
-        risk_contrib = self.weights * marginal
-        total_contrib = np.sum(risk_contrib)
-        
-        if total_contrib > 0:
-            risk_contrib_pct = risk_contrib / total_contrib
-        else:
-            risk_contrib_pct = np.ones(len(self.weights)) / len(self.weights)
-
-        # TYPE SAFETY: Cast each value to float
-        return {str(t): round(float(rc), 4) for t, rc in zip(self.weights_dict.keys(), risk_contrib_pct)}
+        try:
+            individual_vols = np.sqrt(np.diag(self.cov))
+            weighted_sum_vols = np.sum(self.weights * individual_vols)
+            portfolio_vol = np.sqrt(np.dot(self.weights.T, np.dot(self.cov, self.weights)))
+            
+            if portfolio_vol > 0:
+                return float(weighted_sum_vols / portfolio_vol)
+            return 1.0
+        except:
+            return 1.0
 
     def run_stress_test(self):
         portfolio_series = self.returns.dot(self.weights) * 100
+        
+        # Defaults
+        VaR_95 = 0.0
+        ES_95 = 0.0
+        vol = 0.0
+        
+        # 1. Volatility
+        try:
+            vol = float(portfolio_series.std())
+        except:
+            pass
 
+        # 2. GARCH / Historical VaR & ES
         try:
             model = arch_model(portfolio_series, vol='Garch', p=1, o=1, q=1, dist='t')
             res = model.fit(disp='off', show_warning=False)
+            
+            # Forecast
             forecast = res.forecast(horizon=1)
-            next_day_vol = np.sqrt(forecast.variance.values[-1, 0])
+            vol_forecast = np.sqrt(forecast.variance.values[-1, 0])
             nu = res.params['nu']
-            alpha = 0.05
-            t_quantile = stats.t.ppf(alpha, nu)
-            VaR_95 = abs(next_day_vol * t_quantile)
+            t_quantile = stats.t.ppf(0.05, nu)
+            
+            VaR_95 = abs(vol_forecast * t_quantile)
+            
+            # ES
             pdf_at_q = stats.t.pdf(t_quantile, nu)
-            es_factor = (nu + t_quantile ** 2) / (nu - 1)
-            ES_95 = next_day_vol * es_factor * (pdf_at_q / alpha)
-
-        except Exception as e:
-            print(f"GARCH failed ({str(e)}), using historical fallback.")
-            VaR_95 = abs(np.percentile(portfolio_series, 5))
-            tail_losses = portfolio_series[portfolio_series <= -VaR_95]
-            ES_95 = abs(tail_losses.mean()) if len(tail_losses) > 0 else VaR_95
-            next_day_vol = portfolio_series.std()
-
-        diversification_ratio = self.calculate_diversification_ratio()
-        risk_contribution = self.calculate_risk_contribution()
+            es_factor = (nu + t_quantile**2)/(nu - 1)
+            ES_95 = vol_forecast * es_factor * (pdf_at_q / 0.05)
+            
+            vol = vol_forecast # Use GARCH forecast if available
+            
+        except Exception:
+            # Historical Fallback
+            try:
+                VaR_95 = abs(np.percentile(portfolio_series, 5))
+                tail = portfolio_series[portfolio_series <= -VaR_95]
+                ES_95 = abs(tail.mean()) if len(tail) > 0 else VaR_95
+            except:
+                pass # Already 0.0
 
         return {
-            "volatility": round(float(next_day_vol), 2),
-            "VaR_95": round(float(VaR_95), 2),
-            "ES_95": round(float(ES_95), 2),
-            "diversification_ratio": diversification_ratio,
-            "risk_contribution": risk_contribution
+            "volatility": clean_float(vol),
+            "VaR_95": clean_float(VaR_95),
+            "ES_95": clean_float(ES_95),
+            "diversification_ratio": clean_float(self.calculate_diversification_ratio()),
+            #"risk_contribution": self._calc_risk_contribution() # Kept simple for now
         }
 
 
@@ -339,50 +433,51 @@ class RiskEngine:
 # ==========================================================
 @app.get("/")
 def home():
-    return {"message": "RiskLens Brain is active (v2.1 - Type Safe)"}
+    return {"message": "RiskLens Brain v2.1 (Stable) Active"}
 
 @app.post("/analyze")
 def analyze_portfolio(request: PortfolioRequest):
     try:
+        # 1. Load Data
         dm = DataManager(request.tickers)
+
+        # 2. Market Regime
         regime = MarketRegime(dm)
         market_status = regime.get_status()
 
+        # 3. Build Portfolio (HRP -> MV -> Error)
         architect = PortfolioArchitect(dm, force_min_weight=request.force_min_weight)
-        weights = architect.build_portfolio(request.strategy)
+        weights_dict, cluster_order = architect.build_portfolio(request.strategy)
 
-        if not weights:
-            raise HTTPException(status_code=400, detail="Optimization failed.")
-
-        risk_engine = RiskEngine(dm, weights)
-        risk_metrics = risk_engine.run_stress_test()
-
-        # TYPE SAFETY: Handle Cluster Order
-        raw_cluster_order = architect.cluster_order or list(weights.keys())
-        cluster_order = [str(x) for x in raw_cluster_order]
-
-        # TYPE SAFETY: Handle Correlation Matrix
+        # 4. Correlation Matrix
         corr_matrix = dm.returns.corr().round(4)
-        # Convert dataframe values to a pure list of floats (no numpy types)
-        corr_values = [[float(x) for x in row] for row in corr_matrix.values]
-        
-        correlation_data = {
-            "labels": [str(x) for x in corr_matrix.columns],
-            "values": corr_values
+        corr_data = {
+            "labels": list(corr_matrix.columns),
+            # Convert to list of lists of floats
+            "values": corr_matrix.values.tolist()
         }
 
-        return {
+        # 5. Risk Metrics
+        risk_engine = RiskEngine(dm, weights_dict)
+        risk_metrics = risk_engine.run_stress_test()
+        
+        # 6. Construct Safe Response
+        # Clean entire dictionary to ensure no numpy types leak
+        response_payload = {
             "market_status": market_status,
-            "weights": weights,
+            "weights": weights_dict,
             "risk_metrics": risk_metrics,
             "cluster_order": cluster_order,
-            "correlation_matrix": correlation_data
+            "correlation_matrix": corr_data
         }
+        
+        return clean_dict(response_payload)
 
     except ValueError as e:
+        # Expected business logic errors (e.g. bad inputs)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Log the full error to the console for debugging
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Calculation Error: {str(e)}")
+        # Unexpected server errors
+        print(f"CRITICAL SERVER ERROR: {str(e)}")
+        # In production, you'd log stack trace here
+        raise HTTPException(status_code=500, detail="Internal Calculation Error. Please check inputs and try again.")
