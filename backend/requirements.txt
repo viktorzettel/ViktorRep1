@@ -6,6 +6,6 @@ scipy<1.14.0
 yfinance
 arch
 pydantic
-riskfolio-lib>=5.0.0
+riskfolio-lib>=6.0.0
 cvxpy
 scikit-learn
