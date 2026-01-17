@@ -30,29 +30,27 @@ app.add_middleware(
 )
 
 # ==========================================================
-# UTILS: SERIALIZATION SAFETY (The Numpy Fix)
+# UNIVERSAL SERIALIZER (The "Numpy Hunter")
 # ==========================================================
-def clean_float(value: Any) -> float:
-    """Explicitly convert numpy/pandas types to native Python float"""
-    if pd.isna(value) or np.isinf(value):
-        return 0.0
-    return float(round(value, 4))
-
-def clean_dict(d: Dict) -> Dict:
-    """Recursively clean dictionary values for JSON serialization"""
-    clean = {}
-    for k, v in d.items():
-        if isinstance(v, (np.integer, int)):
-            clean[k] = int(v)
-        elif isinstance(v, (np.floating, float)):
-            clean[k] = clean_float(v)
-        elif isinstance(v, dict):
-            clean[k] = clean_dict(v)
-        elif isinstance(v, list):
-            clean[k] = [clean_float(x) if isinstance(x, (float, np.floating)) else x for x in v]
-        else:
-            clean[k] = v
-    return clean
+def clean_payload(obj: Any) -> Any:
+    """
+    Recursively converts ALL numpy/pandas types to native Python types.
+    This prevents the 'numpy.int32 is not iterable' error in FastAPI.
+    """
+    if isinstance(obj, dict):
+        return {str(k): clean_payload(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple, np.ndarray, pd.Index)):
+        return [clean_payload(x) for x in obj]
+    elif isinstance(obj, (np.floating, float)):
+        if np.isnan(obj) or np.isinf(obj): return 0.0
+        return float(round(float(obj), 4))
+    elif isinstance(obj, (np.integer, int)):
+        return int(obj)
+    elif isinstance(obj, (np.str_, str)):
+        return str(obj)
+    elif pd.isna(obj):
+        return None
+    return obj
 
 # ==========================================================
 # CACHING LAYER & DATA FETCHING
@@ -471,7 +469,7 @@ def analyze_portfolio(request: PortfolioRequest):
             "correlation_matrix": corr_data
         }
         
-        return clean_dict(response_payload)
+        return clean_payload(response_payload)
 
     except ValueError as e:
         # Expected business logic errors (e.g. bad inputs)
