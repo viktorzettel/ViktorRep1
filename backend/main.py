@@ -418,10 +418,10 @@ class RiskEngine:
                 pass # Already 0.0
 
         return {
-            "volatility": clean_float(vol),
-            "VaR_95": clean_float(VaR_95),
-            "ES_95": clean_float(ES_95),
-            "diversification_ratio": clean_float(self.calculate_diversification_ratio()),
+            "volatility": float(vol),
+            "VaR_95": float(VaR_95),
+            "ES_95": float(ES_95),
+            "diversification_ratio": float(self.calculate_diversification_ratio()),
             #"risk_contribution": self._calc_risk_contribution() # Kept simple for now
         }
 
