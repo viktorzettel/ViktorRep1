@@ -1,0 +1,147 @@
+.market-weather {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem 1.75rem;
+    animation: fadeIn 0.6s var(--ease-out-expo);
+    position: relative;
+}
+
+/* Gradient border effect */
+.market-weather.green {
+    background:
+        linear-gradient(145deg, rgba(0, 214, 143, 0.08) 0%, rgba(0, 214, 143, 0.02) 50%, var(--glass-bg) 100%);
+    border-color: rgba(0, 214, 143, 0.2);
+}
+
+.market-weather.red {
+    background:
+        linear-gradient(145deg, rgba(255, 68, 102, 0.08) 0%, rgba(255, 68, 102, 0.02) 50%, var(--glass-bg) 100%);
+    border-color: rgba(255, 68, 102, 0.2);
+}
+
+/* Animated side accent bar */
+.market-weather.green::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    background: linear-gradient(180deg, transparent, var(--success), transparent);
+    border-radius: 2px;
+    animation: glowPulse 3s ease-in-out infinite;
+}
+
+.market-weather.red::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    background: linear-gradient(180deg, transparent, var(--danger), transparent);
+    border-radius: 2px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.weather-icon {
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* Icon glow ring */
+.weather-icon::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    opacity: 0.4;
+}
+
+.market-weather.green .weather-icon {
+    background: linear-gradient(145deg, var(--success-soft) 0%, rgba(0, 214, 143, 0.05) 100%);
+    color: var(--success);
+    box-shadow: 0 4px 20px var(--success-glow);
+}
+
+.market-weather.green .weather-icon::before {
+    background: radial-gradient(circle, var(--success-glow) 0%, transparent 70%);
+}
+
+.market-weather.red .weather-icon {
+    background: linear-gradient(145deg, var(--danger-soft) 0%, rgba(255, 68, 102, 0.05) 100%);
+    color: var(--danger);
+    box-shadow: 0 4px 20px var(--danger-glow);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.market-weather.red .weather-icon::before {
+    background: radial-gradient(circle, var(--danger-glow) 0%, transparent 70%);
+}
+
+.weather-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.weather-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.weather-score {
+    font-weight: 500;
+    font-size: 0.875rem;
+    opacity: 0.65;
+}
+
+.market-weather.green .weather-title {
+    color: var(--success);
+}
+
+.market-weather.red .weather-title {
+    color: var(--danger);
+}
+
+.weather-message {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+
+.weather-indicator {
+    flex-shrink: 0;
+}
+
+.weather-status {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid;
+}
+
+.market-weather.green .weather-status {
+    background: var(--success-soft);
+    color: var(--success);
+    border-color: rgba(0, 214, 143, 0.2);
+}
+
+.market-weather.red .weather-status {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border-color: rgba(255, 68, 102, 0.2);
+}

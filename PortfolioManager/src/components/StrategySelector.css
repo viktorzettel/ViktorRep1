@@ -1,0 +1,110 @@
+.strategy-selector {
+    padding: 1.5rem;
+}
+
+.strategy-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--slate-400);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 1.25rem;
+}
+
+.strategy-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.strategy-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    padding: 1rem 1.25rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    text-align: left;
+    color: var(--text-primary);
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Hover highlight line */
+.strategy-option::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: var(--accent-primary);
+    transition: width var(--transition-fast);
+}
+
+.strategy-option:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.strategy-option:hover::before {
+    width: 3px;
+}
+
+.strategy-option.active {
+    border-color: var(--accent-primary);
+    background: linear-gradient(135deg, var(--accent-soft) 0%, rgba(0, 150, 255, 0.03) 100%);
+    box-shadow: 0 4px 20px rgba(0, 120, 255, 0.1);
+}
+
+.strategy-option.active::before {
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+}
+
+.strategy-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.strategy-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.strategy-name {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.strategy-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.strategy-check {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid var(--glass-border);
+    color: transparent;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.strategy-option.active .strategy-check {
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 180, 255, 0.3);
+}
