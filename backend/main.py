@@ -177,11 +177,11 @@ class MarketRegime:
 
             # Heuristic thresholds
             if score < 12:
-                return {"score": clean_float(score), "color": "Green", "message": "Calm"}
+                return {"score": float(score), "color": "Green", "message": "Calm"}
             elif score < 25:
-                return {"score": clean_float(score), "color": "Yellow", "message": "Choppy"}
+                return {"score": float(score), "color": "Yellow", "message": "Choppy"}
             else:
-                return {"score": clean_float(score), "color": "Red", "message": "Turbulent"}
+                return {"score": float(score), "color": "Red", "message": "Turbulent"}
         except Exception:
              # Safe fallback
              return {"score": 0.0, "color": "Green", "message": "Unknown"}
