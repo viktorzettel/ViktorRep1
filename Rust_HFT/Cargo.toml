@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "core_types",
+    "price_engine",
+    "execution_engine"
+]
+resolver = "2"

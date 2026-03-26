@@ -1,0 +1,105 @@
+{
+  "candle_id": "20260206_1145",
+  "open_price": 65976.07,
+  "close_price": 66239.0,
+  "outcome": "up",
+  "final_prediction_correct": false,
+  "decisions": [
+    {
+      "decision_num": 1,
+      "seconds_before_close": 240,
+      "timestamp": 1770378060.328427,
+      "p_up": 0.502165578463461,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.002165578463460993,
+      "ev": 0.002165578463460993,
+      "reason": "Edge 0.2% below threshold 5.0%"
+    },
+    {
+      "decision_num": 2,
+      "seconds_before_close": 210,
+      "timestamp": 1770378090.335493,
+      "p_up": 0.5034164308483471,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.003416430848347085,
+      "ev": 0.003416430848347085,
+      "reason": "Edge 0.3% below threshold 5.0%"
+    },
+    {
+      "decision_num": 3,
+      "seconds_before_close": 180,
+      "timestamp": 1770378120.2905228,
+      "p_up": 0.5021696956258855,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.002169695625885537,
+      "ev": 0.002169695625885537,
+      "reason": "Edge 0.2% below threshold 5.0%"
+    },
+    {
+      "decision_num": 4,
+      "seconds_before_close": 150,
+      "timestamp": 1770378150.393085,
+      "p_up": 0.5015344793305105,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.0015344793305105409,
+      "ev": 0.0015344793305105409,
+      "reason": "Edge 0.2% below threshold 5.0%"
+    },
+    {
+      "decision_num": 5,
+      "seconds_before_close": 120,
+      "timestamp": 1770378180.411194,
+      "p_up": 0.5021561962116969,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.002156196211696937,
+      "ev": 0.002156196211696937,
+      "reason": "Edge 0.2% below threshold 5.0%"
+    },
+    {
+      "decision_num": 6,
+      "seconds_before_close": 90,
+      "timestamp": 1770378210.3533351,
+      "p_up": 0.503421839493106,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.003421839493106038,
+      "ev": 0.003421839493106038,
+      "reason": "Edge 0.3% below threshold 5.0%"
+    },
+    {
+      "decision_num": 7,
+      "seconds_before_close": 60,
+      "timestamp": 1770378240.4486651,
+      "p_up": 0.5025548399035352,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.002554839903535222,
+      "ev": 0.002554839903535222,
+      "reason": "Edge 0.3% below threshold 5.0%"
+    },
+    {
+      "decision_num": 8,
+      "seconds_before_close": 30,
+      "timestamp": 1770378270.278671,
+      "p_up": 0.5051673107372318,
+      "yes_price": 0.5,
+      "target": "yes",
+      "action": "SKIP",
+      "edge": 0.005167310737231756,
+      "ev": 0.005167310737231756,
+      "reason": "Edge 0.5% below threshold 5.0%"
+    }
+  ]
+}

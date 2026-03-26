@@ -1,6 +1,30 @@
-Random projects I am working on. 
-asset_vol_tracker.py is a volatility and regime tracker for Solana and XRP (think Prediction Markets). You can use it as a guideline on whether it is safe to trade or not. There is a regime metric /Very bad to Very good), jump activity measuring 2sigma or larger jumps in 5 minute blocks for 1m and 10s candles, a standard deviation metric for 30m, 60m in basis points and other useful metrics. 
-Hot to run: python /(where you have saved it)asset_vol_report.py --assets SOL,XRP --live-source binance --serve --loop --port 8010
-https://portfoliolens.netlify.app is a Portfolio Calculator going beyond Mean Variance Optimization using more recent Methods like Hierarchical Risk Parity or Nested Clustered Optimization
-Go check: https://realscalesolarsystem.netlify.app to see my first website.
-Go check: https://jupiterproject.netlify.app
+# ViktorRep1
+
+A monorepo containing various AI, algorithmic trading, and web development projects.
+
+## Core Projects
+
+### 📈 Market Making & Algo Trading (`/MM`)
+A comprehensive suite of algorithmic trading bots, quantitative analysis tools, and decision engines, primarily focused on crypto and prediction markets.
+- **Kou Jump-Diffusion Bots**: Advanced options pricing models replacing Black-Scholes to better account for market jumps and fat tails (`kou_decision_bot.py`, `kou_dashboard.py`).
+- **Volatility & Regime Trackers**: Real-time tracking of market volatility for Solana and XRP (`asset_vol_report.py`).
+- **Arbitrage Loggers & Snipers**: Tools for identifying and executing arbitrage opportunities across markets (`arb_logger.py`, `momentum_sniper.py`).
+
+### 💼 PortfolioManager
+A modern web application for advanced portfolio optimization.
+- Goes beyond traditional Mean-Variance Optimization using modern methods like Hierarchical Risk Parity (HRP) and Nested Clustered Optimization (NCO).
+- [Live Demo](https://portfoliolens.netlify.app)
+
+### 🪐 Interactive Web Visualizations
+- **Real_Scale_Solar_System**: A visually stunning, accurately scaled 3D visualization of our solar system using React and Three.js. [Live Demo](https://realscalesolarsystem.netlify.app)
+- **Jupiter / Saturn Projects**: Experimental 3D planetary renderings (`jupiterproject/`, `Saturn-descent/`). [Jupiter Live](https://jupiterproject.netlify.app)
+
+### 🤖 AI Utilities & Agents
+- **AIfluencer**: A Next.js application representing an AI influencer framework.
+- **Bitcoin Sentiment Tracker**: A full-stack demo app (`bitcoin-sentiment-tracker-demo/`) for analyzing market sentiment.
+
+### 🦀 Rust HFT (`/Rust_HFT`)
+A high-frequency trading engine prototype built in Rust for maximum execution speed and minimal latency.
+
+---
+*Maintained by Viktor Zettel.*

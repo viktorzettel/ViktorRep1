@@ -1,0 +1,350 @@
+=== Polymarket 15-Min BTC Strategy - 90-Day Analysis with Vol Regimes ===
+
+Data period: 2025-11-06 02:25:00+00:00 to 2026-02-04 08:37:00+00:00
+
+Volatility Regime Calculation:
+- True Range per 1-min bar
+- 28-period rolling ATR (standard)
+- Regimes: Low/Med/High based on 33rd/67th percentiles of all ATR values
+
+CI-Based Safe Thresholds (min_count=10):
+YES: delta ≥ threshold (upper CI reversal ≤5%/10%)
+NO: delta ≤ threshold
+High_1min_NO_80pct: -50$
+High_1min_NO_85pct: -50$
+High_1min_NO_90pct: -50$
+High_1min_NO_95pct: -50$
+High_1min_YES_80pct: 50$
+High_1min_YES_85pct: 50$
+High_1min_YES_90pct: 50$
+High_1min_YES_95pct: 50$
+High_2min_NO_80pct: -150$
+High_2min_NO_85pct: -150$
+High_2min_NO_90pct: -150$
+High_2min_NO_95pct: -150$
+High_2min_YES_80pct: 150$
+High_2min_YES_85pct: 150$
+High_2min_YES_90pct: 150$
+High_2min_YES_95pct: 150$
+High_3min_NO_80pct: -150$
+High_3min_NO_85pct: -150$
+High_3min_NO_90pct: -150$
+High_3min_NO_95pct: -250$
+High_3min_YES_80pct: 150$
+High_3min_YES_85pct: 150$
+High_3min_YES_90pct: 150$
+High_3min_YES_95pct: 250$
+High_4min_NO_80pct: -150$
+High_4min_NO_85pct: -150$
+High_4min_NO_90pct: -150$
+High_4min_NO_95pct: -250$
+High_4min_YES_80pct: 150$
+High_4min_YES_85pct: 150$
+High_4min_YES_90pct: 250$
+High_4min_YES_95pct: 350$
+High_5min_NO_80pct: -150$
+High_5min_NO_85pct: -150$
+High_5min_NO_90pct: -250$
+High_5min_NO_95pct: N/A
+High_5min_YES_80pct: 150$
+High_5min_YES_85pct: 150$
+High_5min_YES_90pct: 250$
+High_5min_YES_95pct: 450$
+Low_1min_NO_80pct: -50$
+Low_1min_NO_85pct: -50$
+Low_1min_NO_90pct: -50$
+Low_1min_NO_95pct: -50$
+Low_1min_YES_80pct: 50$
+Low_1min_YES_85pct: 50$
+Low_1min_YES_90pct: 50$
+Low_1min_YES_95pct: 50$
+Low_2min_NO_80pct: -50$
+Low_2min_NO_85pct: -50$
+Low_2min_NO_90pct: -50$
+Low_2min_NO_95pct: -150$
+Low_2min_YES_80pct: 50$
+Low_2min_YES_85pct: 50$
+Low_2min_YES_90pct: 150$
+Low_2min_YES_95pct: 150$
+Low_3min_NO_80pct: -50$
+Low_3min_NO_85pct: -50$
+Low_3min_NO_90pct: -150$
+Low_3min_NO_95pct: -150$
+Low_3min_YES_80pct: 50$
+Low_3min_YES_85pct: 50$
+Low_3min_YES_90pct: 150$
+Low_3min_YES_95pct: 150$
+Low_4min_NO_80pct: -50$
+Low_4min_NO_85pct: -150$
+Low_4min_NO_90pct: -150$
+Low_4min_NO_95pct: N/A
+Low_4min_YES_80pct: 50$
+Low_4min_YES_85pct: 150$
+Low_4min_YES_90pct: 150$
+Low_4min_YES_95pct: 150$
+Low_5min_NO_80pct: -150$
+Low_5min_NO_85pct: -150$
+Low_5min_NO_90pct: -150$
+Low_5min_NO_95pct: -150$
+Low_5min_YES_80pct: 150$
+Low_5min_YES_85pct: 150$
+Low_5min_YES_90pct: 150$
+Low_5min_YES_95pct: N/A
+Med_1min_NO_80pct: -50$
+Med_1min_NO_85pct: -50$
+Med_1min_NO_90pct: -50$
+Med_1min_NO_95pct: -50$
+Med_1min_YES_80pct: 50$
+Med_1min_YES_85pct: 50$
+Med_1min_YES_90pct: 50$
+Med_1min_YES_95pct: 50$
+Med_2min_NO_80pct: -50$
+Med_2min_NO_85pct: -50$
+Med_2min_NO_90pct: -150$
+Med_2min_NO_95pct: -150$
+Med_2min_YES_80pct: 50$
+Med_2min_YES_85pct: 150$
+Med_2min_YES_90pct: 150$
+Med_2min_YES_95pct: 150$
+Med_3min_NO_80pct: -50$
+Med_3min_NO_85pct: -150$
+Med_3min_NO_90pct: -150$
+Med_3min_NO_95pct: -150$
+Med_3min_YES_80pct: 150$
+Med_3min_YES_85pct: 150$
+Med_3min_YES_90pct: 150$
+Med_3min_YES_95pct: 150$
+Med_4min_NO_80pct: -150$
+Med_4min_NO_85pct: -150$
+Med_4min_NO_90pct: -150$
+Med_4min_NO_95pct: -150$
+Med_4min_YES_80pct: 150$
+Med_4min_YES_85pct: 150$
+Med_4min_YES_90pct: 150$
+Med_4min_YES_95pct: 150$
+Med_5min_NO_80pct: -150$
+Med_5min_NO_85pct: -150$
+Med_5min_NO_90pct: -150$
+Med_5min_NO_95pct: -250$
+Med_5min_YES_80pct: 150$
+Med_5min_YES_85pct: 150$
+Med_5min_YES_90pct: 150$
+Med_5min_YES_95pct: 250$
+
+Specific Delta Summary (counts and avg reversal prob):
+
+=== Low Volatility Regime ===
+
+--- 1 Minute(s) Left ---
++/-50$: +delta count=1150, rev_prob=0.000 | -delta count=1186, rev_prob=0.000
++/-75$: +delta count=1150, rev_prob=0.000 | -delta count=1186, rev_prob=0.000
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=271, rev_prob=0.000 | -delta count=246, rev_prob=0.000
++/-150$: +delta count=271, rev_prob=0.000 | -delta count=246, rev_prob=0.000
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=19, rev_prob=0.000 | -delta count=34, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 2 Minute(s) Left ---
++/-50$: +delta count=1146, rev_prob=0.087 | -delta count=1151, rev_prob=0.075
++/-75$: +delta count=1146, rev_prob=0.087 | -delta count=1151, rev_prob=0.075
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=273, rev_prob=0.007 | -delta count=234, rev_prob=0.004
++/-150$: +delta count=273, rev_prob=0.007 | -delta count=234, rev_prob=0.004
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=20, rev_prob=0.000 | -delta count=34, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 3 Minute(s) Left ---
++/-50$: +delta count=1159, rev_prob=0.134 | -delta count=1152, rev_prob=0.120
++/-75$: +delta count=1159, rev_prob=0.134 | -delta count=1152, rev_prob=0.120
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=245, rev_prob=0.008 | -delta count=205, rev_prob=0.010
++/-150$: +delta count=245, rev_prob=0.008 | -delta count=205, rev_prob=0.010
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=14, rev_prob=0.000 | -delta count=28, rev_prob=0.036
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 4 Minute(s) Left ---
++/-50$: +delta count=1178, rev_prob=0.162 | -delta count=1162, rev_prob=0.148
++/-75$: +delta count=1178, rev_prob=0.162 | -delta count=1162, rev_prob=0.148
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=222, rev_prob=0.009 | -delta count=195, rev_prob=0.021
++/-150$: +delta count=222, rev_prob=0.009 | -delta count=195, rev_prob=0.021
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=20, rev_prob=0.000 | -delta count=31, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 5 Minute(s) Left ---
++/-50$: +delta count=1176, rev_prob=0.188 | -delta count=1189, rev_prob=0.186
++/-75$: +delta count=1176, rev_prob=0.188 | -delta count=1189, rev_prob=0.186
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=222, rev_prob=0.023 | -delta count=204, rev_prob=0.020
++/-150$: +delta count=222, rev_prob=0.023 | -delta count=204, rev_prob=0.020
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=12, rev_prob=0.000 | -delta count=23, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+=== Med Volatility Regime ===
+
+--- 1 Minute(s) Left ---
++/-50$: +delta count=705, rev_prob=0.000 | -delta count=708, rev_prob=0.000
++/-75$: +delta count=705, rev_prob=0.000 | -delta count=708, rev_prob=0.000
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=472, rev_prob=0.000 | -delta count=479, rev_prob=0.000
++/-150$: +delta count=472, rev_prob=0.000 | -delta count=479, rev_prob=0.000
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=198, rev_prob=0.000 | -delta count=193, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 2 Minute(s) Left ---
++/-50$: +delta count=703, rev_prob=0.142 | -delta count=711, rev_prob=0.114
++/-75$: +delta count=703, rev_prob=0.142 | -delta count=711, rev_prob=0.114
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=487, rev_prob=0.002 | -delta count=473, rev_prob=0.004
++/-150$: +delta count=487, rev_prob=0.002 | -delta count=473, rev_prob=0.004
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=199, rev_prob=0.000 | -delta count=190, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 3 Minute(s) Left ---
++/-50$: +delta count=729, rev_prob=0.187 | -delta count=757, rev_prob=0.165
++/-75$: +delta count=729, rev_prob=0.187 | -delta count=757, rev_prob=0.165
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=481, rev_prob=0.015 | -delta count=464, rev_prob=0.011
++/-150$: +delta count=481, rev_prob=0.015 | -delta count=464, rev_prob=0.011
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=187, rev_prob=0.000 | -delta count=187, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 4 Minute(s) Left ---
++/-50$: +delta count=780, rev_prob=0.241 | -delta count=774, rev_prob=0.208
++/-75$: +delta count=780, rev_prob=0.241 | -delta count=774, rev_prob=0.208
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=479, rev_prob=0.025 | -delta count=447, rev_prob=0.025
++/-150$: +delta count=479, rev_prob=0.025 | -delta count=447, rev_prob=0.025
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=173, rev_prob=0.000 | -delta count=197, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 5 Minute(s) Left ---
++/-50$: +delta count=798, rev_prob=0.262 | -delta count=819, rev_prob=0.233
++/-75$: +delta count=798, rev_prob=0.262 | -delta count=819, rev_prob=0.233
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=459, rev_prob=0.044 | -delta count=421, rev_prob=0.038
++/-150$: +delta count=459, rev_prob=0.044 | -delta count=421, rev_prob=0.038
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=168, rev_prob=0.012 | -delta count=174, rev_prob=0.006
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+=== High Volatility Regime ===
+
+--- 1 Minute(s) Left ---
++/-50$: +delta count=369, rev_prob=0.000 | -delta count=383, rev_prob=0.000
++/-75$: +delta count=369, rev_prob=0.000 | -delta count=383, rev_prob=0.000
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=330, rev_prob=0.000 | -delta count=329, rev_prob=0.000
++/-150$: +delta count=330, rev_prob=0.000 | -delta count=329, rev_prob=0.000
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=239, rev_prob=0.000 | -delta count=241, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 2 Minute(s) Left ---
++/-50$: +delta count=413, rev_prob=0.201 | -delta count=392, rev_prob=0.194
++/-75$: +delta count=413, rev_prob=0.201 | -delta count=392, rev_prob=0.194
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=321, rev_prob=0.022 | -delta count=354, rev_prob=0.014
++/-150$: +delta count=321, rev_prob=0.022 | -delta count=354, rev_prob=0.014
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=270, rev_prob=0.004 | -delta count=247, rev_prob=0.000
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 3 Minute(s) Left ---
++/-50$: +delta count=421, rev_prob=0.259 | -delta count=426, rev_prob=0.221
++/-75$: +delta count=421, rev_prob=0.259 | -delta count=426, rev_prob=0.221
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=378, rev_prob=0.053 | -delta count=338, rev_prob=0.036
++/-150$: +delta count=378, rev_prob=0.053 | -delta count=338, rev_prob=0.036
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=262, rev_prob=0.023 | -delta count=250, rev_prob=0.008
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 4 Minute(s) Left ---
++/-50$: +delta count=428, rev_prob=0.294 | -delta count=421, rev_prob=0.283
++/-75$: +delta count=428, rev_prob=0.294 | -delta count=421, rev_prob=0.283
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=374, rev_prob=0.080 | -delta count=367, rev_prob=0.074
++/-150$: +delta count=374, rev_prob=0.080 | -delta count=367, rev_prob=0.074
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=260, rev_prob=0.027 | -delta count=259, rev_prob=0.015
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
+
+--- 5 Minute(s) Left ---
++/-50$: +delta count=449, rev_prob=0.325 | -delta count=407, rev_prob=0.317
++/-75$: +delta count=449, rev_prob=0.325 | -delta count=407, rev_prob=0.317
++/-100$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-125$: +delta count=399, rev_prob=0.100 | -delta count=418, rev_prob=0.096
++/-150$: +delta count=399, rev_prob=0.100 | -delta count=418, rev_prob=0.096
++/-200$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-250$: +delta count=253, rev_prob=0.040 | -delta count=235, rev_prob=0.030
++/-300$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-400$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-500$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-600$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan
++/-700$: +delta count=0, rev_prob=nan | -delta count=0, rev_prob=nan

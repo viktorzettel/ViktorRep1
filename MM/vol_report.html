@@ -1,0 +1,1368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Asset Volatility Report</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+    :root {
+      --bg: #0a0f1c;
+      --panel: #111827;
+      --panel-2: #0f172a;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #35f3ff;
+      --accent-2: #63f3a3;
+      --border: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(800px 500px at 10% 10%, rgba(53,243,255,0.08), transparent),
+        radial-gradient(600px 400px at 90% 0%, rgba(99,243,163,0.08), transparent),
+        linear-gradient(180deg, #0a0f1c 0%, #0b1224 100%);
+    }
+    .wrap { max-width: 1100px; margin: 32px auto 48px; padding: 0 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+    h1 { font-size: 28px; margin: 0; letter-spacing: 0.4px; }
+    .meta { color: var(--muted); font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: 0 0 0 1px rgba(255,255,255,0.02); }
+    .card h3 { margin: 0 0 8px 0; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; }
+    .input { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: #0b1224; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; outline: none; }
+    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(53,243,255,0.15); }
+    .toggle { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+    .toggle button { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: #0b1224; color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 12px; cursor: pointer; }
+    .toggle button.active { color: var(--text); border-color: var(--accent); background: rgba(53,243,255,0.12); }
+    .big { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .sub { color: var(--muted); font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+    .section { margin-top: 22px; }
+    .section h2 { font-size: 16px; margin: 0 0 10px 0; color: var(--muted); letter-spacing: 0.4px; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    th { color: var(--muted); font-weight: 600; }
+    .bars { display: grid; grid-template-columns: 80px 1fr 100px; gap: 8px; align-items: center; margin: 6px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .bar { height: 8px; background: #0b1224; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .countdown { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(53,243,255,0.35); background: rgba(53,243,255,0.12); font-weight: 700; }
+    .decision {
+      border: 1px solid rgba(53,243,255,0.25);
+      background: linear-gradient(180deg, rgba(53,243,255,0.06), rgba(99,243,163,0.04));
+    }
+    .decision-row { display: flex; align-items: center; gap: 10px; }
+    .decision-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: #64748b;
+      box-shadow: 0 0 16px rgba(100,116,139,0.45);
+    }
+    .decision-icon.up { background: #22c55e; box-shadow: 0 0 18px rgba(34,197,94,0.55); }
+    .decision-icon.down { background: #ef4444; box-shadow: 0 0 18px rgba(239,68,68,0.55); }
+    .decision-icon.wait { background: #f59e0b; box-shadow: 0 0 18px rgba(245,158,11,0.55); }
+    .decision-meter {
+      margin-top: 8px;
+      width: 100%;
+      height: 8px;
+      background: #0b1224;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .decision-meter > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #35f3ff, #63f3a3);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Asset Volatility Report</h1>
+        <div class="meta">Source: Binance · Lookback: 6.0h · 2026-02-28 08:44:59 UTC</div>
+      </div>
+      <div>
+        <div class="countdown"><span class="pill">Refresh in <span id="refresh-t">60</span>s</span></div>
+      </div>
+    </header>
+
+    <div class="card">
+      <h3>Asset</h3>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="toggle" id="asset-toggle"><button data-asset='SOL'>SOL</button><button data-asset='XRP'>XRP</button></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);" id="live-spot">—</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Market Condition</h3>
+        <div class="big" id="market-condition-label">BUILDING</div>
+        <div class="sub" id="market-condition-score">Score: —</div>
+        <div class="sub" id="market-condition-meta">Collecting live micro data...</div>
+      </div>
+      <div class="card">
+        <h3>Health (Current)</h3>
+        <div class="big" id="health-current-score">50/100</div>
+        <div class="sub"><span class="badge" id="health-current-label" style="color:#35f3ff">NORMAL</span></div>
+      </div>
+      <div class="card">
+        <h3>Shock (Last 5m)</h3>
+        <div class="big" id="shock-count">0</div>
+        <div class="sub" id="shock-sub">adaptive: 2σ(60m) rate 5.00% · last5 0 · 2σ(60m)≈$0.2259 · 3σ(60m)≈$0.3389 · max $0.1898</div>
+        <div class="sub" id="shock-sub2">anchored: 0.00% · last5 0 · 55bp≈$0.4302 · last15 0 / 0</div>
+      </div>
+      <div class="card decision">
+        <h3>Decision (5m/15m)</h3>
+        <label class="sub">Decision strike price</label>
+        <input class="input" id="decision-strike" placeholder="e.g. 245.50" />
+        <div class="sub" style="margin-top:10px;">Decision timeframe</div>
+        <div class="toggle" id="decision-toggle">
+          <button data-dtf="15">15m</button>
+          <button data-dtf="5">5m</button>
+        </div>
+        <div class="sub" style="margin-top:8px;">Decision time left: <span id="decision-time">—</span></div>
+        <div class="decision-row">
+          <span class="decision-icon wait" id="decision-icon"></span>
+          <div class="big" id="decision-action">NO_TRADE</div>
+        </div>
+        <div class="sub"><span class="badge" id="decision-badge">WAIT</span></div>
+        <div class="sub" id="decision-confidence">Confidence: --</div>
+        <div class="decision-meter"><span id="decision-meter"></span></div>
+        <div class="sub" style="margin-top:8px;" id="decision-reasons">Enter strike and wait for stream samples.</div>
+        <div class="sub" id="decision-meta">Decision engine: inactive</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Volatility Snapshot</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Volatility Metrics</h3>
+          <table>
+            <tr><th>Metric</th><th>Value</th></tr>
+            <tr><td>Long σ (6h)</td><td id="long-sigma">14.83 bp (~$0.1160)</td></tr>
+            <tr><td>Short 30m σ</td><td id="short30">14.49 bp (~$0.1134)</td></tr>
+            <tr><td>Short 60m σ</td><td id="short60">14.44 bp (~$0.1130)</td></tr>
+            <tr><td>Regime (30m/long)</td><td id="regime">NORMAL (0.98x)</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Movement (1m)</h3>
+          <table>
+            <tr><th>Metric</th><th>Value</th></tr>
+            <tr><td>Avg 1m move (abs, close‑to‑close)</td><td id="avg-move">30m=10.26 bp (~$0.0802), 60m=11.25 bp (~$0.0880), EWMA(hl=30m)=11.80 bp (~$0.0923)</td></tr>
+            <tr><td>Live Range (60s)</td><td id="live-range-60">—</td></tr>
+            <tr><td>Avg Range (1m) — last 30m</td><td id="avg-range-1m">—</td></tr>
+            <tr><td>90% Range (1m) — last 30m</td><td id="p90-range-1m">—</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Strike Buffer Guide</h2>
+      <table>
+        <tr><th>Minutes Left</th><th>90% Hybrid</th><th>95% Hybrid</th><th>90% M/E/H (bp)</th><th>95% M/E/H (bp)</th></tr>
+        <tbody id="buffer-rows"><tr><td>1m</td><td>$0.1858</td><td>$0.2214</td><td>23.76 bp/23.17 bp/23.76 bp</td><td>28.31 bp/25.57 bp/28.31 bp</td></tr>
+<tr><td>2m</td><td>$0.2628</td><td>$0.3131</td><td>33.60 bp/32.10 bp/33.60 bp</td><td>40.03 bp/36.45 bp/40.03 bp</td></tr>
+<tr><td>3m</td><td>$0.3219</td><td>$0.3835</td><td>41.15 bp/32.71 bp/41.15 bp</td><td>49.03 bp/44.07 bp/49.03 bp</td></tr>
+<tr><td>4m</td><td>$0.3717</td><td>$0.4429</td><td>47.52 bp/38.85 bp/47.52 bp</td><td>56.62 bp/42.25 bp/56.62 bp</td></tr>
+<tr><td>5m</td><td>$0.4155</td><td>$0.4951</td><td>53.13 bp/43.33 bp/53.13 bp</td><td>63.30 bp/55.23 bp/63.30 bp</td></tr>
+<tr><td>6m</td><td>$0.4552</td><td>$0.5424</td><td>58.20 bp/44.60 bp/58.20 bp</td><td>69.34 bp/49.94 bp/69.34 bp</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Market State (last 15m)</h2>
+      <div class="card">
+        <table>
+          <tr><th>Metric</th><th>Value</th></tr>
+          <tr><td>State</td><td><span class="badge" id="state-label" style="color:#ffd166">CHOP</span></td></tr>
+          <tr><td>Efficiency Ratio</td><td id="state-er">0.09</td></tr>
+          <tr><td>Persistence</td><td id="state-persist">40%</td></tr>
+          <tr><td>Run Length</td><td id="state-run">0m</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Micro (10s Aggregation, rolling window)</h2>
+      <div class="card">
+        <table>
+          <tr><th>Metric</th><th>Value</th></tr>
+          <tr><td>Window</td><td id="micro-window">15m</td></tr>
+          <tr><td>Status</td><td id="micro-status">Waiting for live ticks...</td></tr>
+          <tr><td>Last tick age</td><td id="micro-last-tick">—</td></tr>
+          <tr><td>σ (10s)</td><td id="micro-sigma">—</td></tr>
+          <tr><td>σ (1m-eq)</td><td id="micro-sigma1m">—</td></tr>
+          <tr><td>σ (15m-eq)</td><td id="micro-sigma15">—</td></tr>
+          <tr><td>2σ threshold (10s)</td><td id="micro-2sigma">—</td></tr>
+          <tr><td>Jumps >=2σ (last 5m)</td><td id="micro-jumps5">—</td></tr>
+          <tr><td>Jump rate (5m / 15m)</td><td id="micro-jumprate">—</td></tr>
+          <tr><td>Max jump (last 5m)</td><td id="micro-max5">—</td></tr>
+          <tr><td>Median jump (last 5m)</td><td id="micro-med5">—</td></tr>
+          <tr><td>Samples (10s returns)</td><td id="micro-samples">—</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Jump Activity (last 60m, 5m buckets)</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Adaptive (≥2σ 60m)</h3>
+          <div id="jump-bars"><div class='bars'><div>55-60m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1985</div></div>
+<div class='bars'><div>50-55m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1092</div></div>
+<div class='bars'><div>45-50m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0497</div></div>
+<div class='bars'><div>40-45m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.2692</div></div>
+<div class='bars'><div>35-40m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1493</div></div>
+<div class='bars'><div>30-35m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1596</div></div>
+<div class='bars'><div>25-30m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.3293</div></div>
+<div class='bars'><div>20-25m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.2303</div></div>
+<div class='bars'><div>15-20m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1198</div></div>
+<div class='bars'><div>10-15m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1899</div></div>
+<div class='bars'><div>05-10m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0899</div></div>
+<div class='bars'><div>00-05m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1898</div></div></div>
+        </div>
+        <div class="card">
+          <h3>Anchored (≥fixed bp)</h3>
+          <div id="jump-bars-anchor"><div class='bars'><div>55-60m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1985</div></div>
+<div class='bars'><div>50-55m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1092</div></div>
+<div class='bars'><div>45-50m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0497</div></div>
+<div class='bars'><div>40-45m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.2692</div></div>
+<div class='bars'><div>35-40m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1493</div></div>
+<div class='bars'><div>30-35m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1596</div></div>
+<div class='bars'><div>25-30m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.3293</div></div>
+<div class='bars'><div>20-25m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.2303</div></div>
+<div class='bars'><div>15-20m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1198</div></div>
+<div class='bars'><div>10-15m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1899</div></div>
+<div class='bars'><div>05-10m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0899</div></div>
+<div class='bars'><div>00-05m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1898</div></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const ASSETS = ["SOL", "XRP"];
+    const ASSET_DATA = {"SOL": {"asset": "SOL", "last_price": "78.22", "long_sigma_bps": "14.83 bp", "long_sigma_usd": "$0.1160", "current_score": "50", "current_label": "NORMAL", "current_color": "#35f3ff", "combined_score": "N/A", "combined_label": "N/A", "combined_color": "#94a3b8", "max_jump_usd": "$0.1898", "jump_count": "0", "jump_count_anchor": "0", "jump_thresh": "2\u03c3(60m)\u2248$0.2259 \u00b7 3\u03c3(60m)\u2248$0.3389", "jump_thresh_anchor": "55bp\u2248$0.4302", "jump_rate_60m": "5.00%", "jump_rate_60m_anchor": "0.00%", "jump15_max": "$0.1899", "jump15_med": "$0.0200", "jump15_count": "0", "jump15_count_anchor": "0", "jump15_max_bp": "24.27 bp", "jump15_med_bp": "2.55 bp", "short30": "14.49 bp (~$0.1134)", "short60": "14.44 bp (~$0.1130)", "regime": "NORMAL (0.98x)", "calc_spot": "78.22", "calc_spot_num": 78.22, "calc_sigma1m": 0.001449447157403347, "calc_sigma_label": "30m sigma (regime-aware)", "long_sigma_raw": 0.001482756559380912, "short_sigma_raw": 0.001449447157403347, "short2_sigma_raw": 0.001444287446322047, "regime_ratio_raw": 0.9775354883666996, "current_score_raw": 50.257241886269156, "jump_rate_60m_raw": 0.05, "jump_rate_60m_anchor_raw": 0.0, "jump15_count_raw": 0, "jump15_count_anchor_raw": 0, "jump_anchor_bp_raw": 55.0, "avg_move": "30m=10.26 bp (~$0.0802), 60m=11.25 bp (~$0.0880), EWMA(hl=30m)=11.80 bp (~$0.0923)", "buffer_rows": "<tr><td>1m</td><td>$0.1858</td><td>$0.2214</td><td>23.76 bp/23.17 bp/23.76 bp</td><td>28.31 bp/25.57 bp/28.31 bp</td></tr>\n<tr><td>2m</td><td>$0.2628</td><td>$0.3131</td><td>33.60 bp/32.10 bp/33.60 bp</td><td>40.03 bp/36.45 bp/40.03 bp</td></tr>\n<tr><td>3m</td><td>$0.3219</td><td>$0.3835</td><td>41.15 bp/32.71 bp/41.15 bp</td><td>49.03 bp/44.07 bp/49.03 bp</td></tr>\n<tr><td>4m</td><td>$0.3717</td><td>$0.4429</td><td>47.52 bp/38.85 bp/47.52 bp</td><td>56.62 bp/42.25 bp/56.62 bp</td></tr>\n<tr><td>5m</td><td>$0.4155</td><td>$0.4951</td><td>53.13 bp/43.33 bp/53.13 bp</td><td>63.30 bp/55.23 bp/63.30 bp</td></tr>\n<tr><td>6m</td><td>$0.4552</td><td>$0.5424</td><td>58.20 bp/44.60 bp/58.20 bp</td><td>69.34 bp/49.94 bp/69.34 bp</td></tr>", "jump_bars": "<div class='bars'><div>55-60m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1985</div></div>\n<div class='bars'><div>50-55m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1092</div></div>\n<div class='bars'><div>45-50m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0497</div></div>\n<div class='bars'><div>40-45m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.2692</div></div>\n<div class='bars'><div>35-40m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1493</div></div>\n<div class='bars'><div>30-35m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1596</div></div>\n<div class='bars'><div>25-30m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.3293</div></div>\n<div class='bars'><div>20-25m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.2303</div></div>\n<div class='bars'><div>15-20m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1198</div></div>\n<div class='bars'><div>10-15m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1899</div></div>\n<div class='bars'><div>05-10m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0899</div></div>\n<div class='bars'><div>00-05m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1898</div></div>", "jump_bars_anchor": "<div class='bars'><div>55-60m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1985</div></div>\n<div class='bars'><div>50-55m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1092</div></div>\n<div class='bars'><div>45-50m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0497</div></div>\n<div class='bars'><div>40-45m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.2692</div></div>\n<div class='bars'><div>35-40m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1493</div></div>\n<div class='bars'><div>30-35m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1596</div></div>\n<div class='bars'><div>25-30m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.3293</div></div>\n<div class='bars'><div>20-25m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.2303</div></div>\n<div class='bars'><div>15-20m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1198</div></div>\n<div class='bars'><div>10-15m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1899</div></div>\n<div class='bars'><div>05-10m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0899</div></div>\n<div class='bars'><div>00-05m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.1898</div></div>", "trend_label": "UP 207.0%", "trend_color": "#ff9f1c", "state_label": "CHOP", "state_color": "#ffd166", "state_er": "0.09", "state_persist": "40%", "state_run": "0m", "state_er_raw": 0.08702264363579618, "state_persist_raw": 0.4, "state_run_raw": 0}, "XRP": {"asset": "XRP", "last_price": "1.29", "long_sigma_bps": "13.68 bp", "long_sigma_usd": "$0.0018", "current_score": "55", "current_label": "NORMAL", "current_color": "#35f3ff", "combined_score": "N/A", "combined_label": "N/A", "combined_color": "#94a3b8", "max_jump_usd": "$0.0043", "jump_count": "1", "jump_count_anchor": "0", "jump_thresh": "2\u03c3(60m)\u2248$0.0042 \u00b7 3\u03c3(60m)\u2248$0.0062", "jump_thresh_anchor": "45bp\u2248$0.0058", "jump_rate_60m": "6.67%", "jump_rate_60m_anchor": "1.67%", "jump15_max": "$0.0044", "jump15_med": "$0.0009", "jump15_count": "2", "jump15_count_anchor": "0", "jump15_max_bp": "34.13 bp", "jump15_med_bp": "6.95 bp", "short30": "17.24 bp (~$0.0022)", "short60": "16.09 bp (~$0.0021)", "regime": "ELEVATED (1.26x)", "calc_spot": "1.29", "calc_spot_num": 1.2906, "calc_sigma1m": 0.0017235497231463182, "calc_sigma_label": "30m sigma (regime-aware)", "long_sigma_raw": 0.001367961813257256, "short_sigma_raw": 0.0017235497231463182, "short2_sigma_raw": 0.001609480216270708, "regime_ratio_raw": 1.259939938705139, "current_score_raw": 54.93940383408125, "jump_rate_60m_raw": 0.06666666666666667, "jump_rate_60m_anchor_raw": 0.016666666666666666, "jump15_count_raw": 2, "jump15_count_anchor_raw": 0, "jump_anchor_bp_raw": 45.0, "avg_move": "30m=12.69 bp (~$0.0016), 60m=12.88 bp (~$0.0017), EWMA(hl=30m)=13.17 bp (~$0.0017)", "buffer_rows": "<tr><td>1m</td><td>$0.0035</td><td>$0.0043</td><td>26.48 bp/27.15 bp/27.15 bp</td><td>31.55 bp/33.31 bp/33.31 bp</td></tr>\n<tr><td>2m</td><td>$0.0048</td><td>$0.0058</td><td>37.44 bp/32.73 bp/37.44 bp</td><td>44.61 bp/36.62 bp/44.61 bp</td></tr>\n<tr><td>3m</td><td>$0.0059</td><td>$0.0071</td><td>45.86 bp/34.89 bp/45.86 bp</td><td>54.64 bp/42.93 bp/54.64 bp</td></tr>\n<tr><td>4m</td><td>$0.0068</td><td>$0.0081</td><td>52.95 bp/41.05 bp/52.95 bp</td><td>63.09 bp/45.06 bp/63.09 bp</td></tr>\n<tr><td>5m</td><td>$0.0076</td><td>$0.0091</td><td>59.20 bp/49.31 bp/59.20 bp</td><td>70.54 bp/55.97 bp/70.54 bp</td></tr>\n<tr><td>6m</td><td>$0.0084</td><td>$0.0100</td><td>64.85 bp/49.06 bp/64.85 bp</td><td>77.27 bp/56.88 bp/77.27 bp</td></tr>", "jump_bars": "<div class='bars'><div>55-60m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0034</div></div>\n<div class='bars'><div>50-55m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0036</div></div>\n<div class='bars'><div>45-50m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0024</div></div>\n<div class='bars'><div>40-45m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0024</div></div>\n<div class='bars'><div>35-40m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0025</div></div>\n<div class='bars'><div>30-35m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.0046</div></div>\n<div class='bars'><div>25-30m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.0059</div></div>\n<div class='bars'><div>20-25m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0041</div></div>\n<div class='bars'><div>15-20m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0024</div></div>\n<div class='bars'><div>10-15m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.0044</div></div>\n<div class='bars'><div>05-10m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0016</div></div>\n<div class='bars'><div>00-05m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.0043</div></div>", "jump_bars_anchor": "<div class='bars'><div>55-60m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0034</div></div>\n<div class='bars'><div>50-55m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0036</div></div>\n<div class='bars'><div>45-50m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0024</div></div>\n<div class='bars'><div>40-45m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0024</div></div>\n<div class='bars'><div>35-40m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0025</div></div>\n<div class='bars'><div>30-35m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0046</div></div>\n<div class='bars'><div>25-30m</div><div class='bar'><span style='width:100%'></span></div><div>1 | $0.0059</div></div>\n<div class='bars'><div>20-25m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0041</div></div>\n<div class='bars'><div>15-20m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0024</div></div>\n<div class='bars'><div>10-15m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0044</div></div>\n<div class='bars'><div>05-10m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0016</div></div>\n<div class='bars'><div>00-05m</div><div class='bar'><span style='width:0%'></span></div><div>0 | $0.0043</div></div>", "trend_label": "UP 88.9%", "trend_color": "#ff9f1c", "state_label": "CHOP", "state_color": "#ffd166", "state_er": "0.03", "state_persist": "40%", "state_run": "0m", "state_er_raw": 0.032565109307083666, "state_persist_raw": 0.4, "state_run_raw": 0}};
+    const CHAINLINK_SYMBOLS = ["sol/usd", "xrp/usd"];
+    const BINANCE_SYMBOLS = {"SOL": "SOLUSDT", "XRP": "XRPUSDT"};
+    const LIVE_SOURCE_MODE = "binance";
+    let currentAsset = "SOL";
+
+    const spotMap = {};
+    const microState = {};
+    const binanceShortState = {};
+    const chainlinkState = {
+      connected: false,
+      lastMsgMs: 0,
+      lastTickByAsset: {},
+    };
+    const binanceState = {
+      connected: false,
+      lastMsgMs: 0,
+      lastTickByAsset: {},
+    };
+    const MICRO_STORAGE_KEY = "asset_vol_micro_state_v1";
+    const DECISION_CFG_KEY = "asset_vol_decision_cfg_v1";
+    const BINANCE_SHORT_KEY = "asset_vol_binance_short_v1";
+    const decisionCfgByAsset = {};
+    ASSETS.forEach(a => {
+      microState[a] = { windowSec: 15 * 60, secs: [], prices: [], lastStats: null };
+      binanceShortState[a] = { secs: [], prices: [], keepSec: 35 * 60 };
+      chainlinkState.lastTickByAsset[a] = 0;
+      binanceState.lastTickByAsset[a] = 0;
+      decisionCfgByAsset[a] = { tf: 15, strike: "" };
+    });
+
+    const el = (id) => document.getElementById(id);
+
+    function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+    function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+    function fmtSpot(x) {
+      if (!x || !Number.isFinite(x)) return "N/A";
+      const ax = Math.abs(x);
+      if (ax < 1) return x.toFixed(4);
+      if (ax < 10) return x.toFixed(3);
+      if (ax < 100) return x.toFixed(2);
+      return x.toFixed(2);
+    }
+
+    function fmtSigned(x) {
+      if (!Number.isFinite(x)) return "N/A";
+      const sign = x > 0 ? "+" : "";
+      const ax = Math.abs(x);
+      const body = ax < 1 ? x.toFixed(4) : x.toFixed(3);
+      return `${sign}${body}`;
+    }
+
+    function setMicroStatus(msg) {
+      const statusEl = el("micro-status");
+      if (statusEl) statusEl.textContent = msg;
+    }
+
+    function updateStreamHealth(asset) {
+      const ageEl = el("micro-last-tick");
+      if (!ageEl) return;
+      const lastBinance = binanceState.lastTickByAsset[asset] || 0;
+      const lastChainlink = chainlinkState.lastTickByAsset[asset] || 0;
+      const lastMs = Math.max(lastBinance, lastChainlink);
+      if (!lastMs) {
+        ageEl.textContent = "No ticks yet";
+        return;
+      }
+      const ageSec = Math.max(0, Math.round((Date.now() - lastMs) / 1000));
+      const src = lastBinance >= lastChainlink ? "binance" : "chainlink";
+      ageEl.textContent = `${ageSec}s (${src})`;
+    }
+
+    function parseAssetFromSymbol(symRaw) {
+      const sym = String(symRaw || "").toUpperCase();
+      if (!sym) return null;
+      // Handles formats like "sol/usd", "SOLUSD", "crypto_prices:SOL/USD", etc.
+      if (sym.includes("BTC")) return "BTC";
+      if (sym.includes("ETH")) return "ETH";
+      if (sym.includes("SOL")) return "SOL";
+      if (sym.includes("XRP")) return "XRP";
+      return null;
+    }
+
+    function shouldAcceptTick(source, asset) {
+      if (LIVE_SOURCE_MODE === "binance") return source === "binance";
+      if (LIVE_SOURCE_MODE === "chainlink") return source === "chainlink";
+      // auto: prefer Binance for SOL/XRP if fresh (<15s), else allow Chainlink fallback.
+      if (source === "binance") return true;
+      const lastBinance = binanceState.lastTickByAsset[asset] || 0;
+      if (!lastBinance) return true;
+      const ageSec = (Date.now() - lastBinance) / 1000;
+      return ageSec > 15;
+    }
+
+    function pruneMicroState(nowSec = Math.floor(Date.now() / 1000)) {
+      ASSETS.forEach(asset => {
+        const m = microState[asset];
+        if (!m) return;
+        const minSec = nowSec - m.windowSec - 30;
+        const secs = [];
+        const prices = [];
+        const n = Math.min(m.secs.length, m.prices.length);
+        for (let i = 0; i < n; i++) {
+          const sec = m.secs[i];
+          const price = m.prices[i];
+          if (!Number.isFinite(sec) || !Number.isFinite(price)) continue;
+          if (sec >= minSec) {
+            secs.push(sec);
+            prices.push(price);
+          }
+        }
+        m.secs = secs;
+        m.prices = prices;
+      });
+    }
+
+    function saveMicroState() {
+      try {
+        pruneMicroState();
+        const payload = { v: 1, ts: Date.now(), assets: {} };
+        ASSETS.forEach(asset => {
+          const m = microState[asset];
+          payload.assets[asset] = {
+            secs: m?.secs || [],
+            prices: m?.prices || [],
+          };
+        });
+        localStorage.setItem(MICRO_STORAGE_KEY, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function restoreMicroState() {
+      try {
+        const raw = localStorage.getItem(MICRO_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || !parsed.assets) return;
+        ASSETS.forEach(asset => {
+          const src = parsed.assets[asset];
+          const m = microState[asset];
+          if (!m || !src) return;
+          if (Array.isArray(src.secs) && Array.isArray(src.prices)) {
+            const n = Math.min(src.secs.length, src.prices.length);
+            const secs = [];
+            const prices = [];
+            for (let i = 0; i < n; i++) {
+              const sec = src.secs[i];
+              const price = src.prices[i];
+              if (!Number.isFinite(sec) || !Number.isFinite(price)) continue;
+              secs.push(sec);
+              prices.push(price);
+            }
+            m.secs = secs;
+            m.prices = prices;
+          }
+        });
+        pruneMicroState();
+      } catch (_) {}
+    }
+
+    function restoreDecisionCfg() {
+      try {
+        const raw = localStorage.getItem(DECISION_CFG_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return;
+        ASSETS.forEach(asset => {
+          const src = parsed[asset];
+          if (!src || typeof src !== "object") return;
+          const tf = parseInt(src.tf, 10);
+          const strike = String(src.strike || "");
+          decisionCfgByAsset[asset] = {
+            tf: tf === 5 ? 5 : 15,
+            strike,
+          };
+        });
+      } catch (_) {}
+    }
+
+    function saveDecisionCfg() {
+      try {
+        localStorage.setItem(DECISION_CFG_KEY, JSON.stringify(decisionCfgByAsset));
+      } catch (_) {}
+    }
+
+    function saveBinanceShortState() {
+      try {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const payload = { v: 1, ts: Date.now(), assets: {} };
+        ASSETS.forEach(asset => {
+          const s = binanceShortState[asset];
+          if (!s) return;
+          const minSec = nowSec - s.keepSec;
+          const secs = [];
+          const prices = [];
+          const n = Math.min(s.secs.length, s.prices.length);
+          for (let i = 0; i < n; i++) {
+            if (s.secs[i] >= minSec) {
+              secs.push(s.secs[i]);
+              prices.push(s.prices[i]);
+            }
+          }
+          payload.assets[asset] = { secs, prices };
+        });
+        localStorage.setItem(BINANCE_SHORT_KEY, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function restoreBinanceShortState() {
+      try {
+        const raw = localStorage.getItem(BINANCE_SHORT_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || !parsed.assets) return;
+        const nowSec = Math.floor(Date.now() / 1000);
+        ASSETS.forEach(asset => {
+          const src = parsed.assets[asset];
+          const s = binanceShortState[asset];
+          if (!s || !src) return;
+          if (Array.isArray(src.secs) && Array.isArray(src.prices)) {
+            const minSec = nowSec - s.keepSec;
+            const n = Math.min(src.secs.length, src.prices.length);
+            const secs = [];
+            const prices = [];
+            for (let i = 0; i < n; i++) {
+              const sec = src.secs[i];
+              const price = src.prices[i];
+              if (!Number.isFinite(sec) || !Number.isFinite(price)) continue;
+              if (sec >= minSec) {
+                secs.push(sec);
+                prices.push(price);
+              }
+            }
+            s.secs = secs;
+            s.prices = prices;
+          }
+        });
+      } catch (_) {}
+    }
+
+    function setActiveAsset(asset) {
+      currentAsset = asset;
+      loadDecisionForAsset(asset);
+      const d = ASSET_DATA[asset];
+      if (!d) return;
+      el("health-current-score").textContent = `${d.current_score}/100`;
+      const hcl = el("health-current-label");
+      hcl.textContent = d.current_label;
+      hcl.style.color = d.current_color;
+      el("shock-count").textContent = d.jump_count;
+      el("shock-sub").textContent = `adaptive: 2σ(60m) rate ${d.jump_rate_60m || "N/A"} · last5 ${d.jump_count || "0"} · ${d.jump_thresh || "N/A"} · max ${d.max_jump_usd || "N/A"}`;
+      el("shock-sub2").textContent = `anchored: ${d.jump_rate_60m_anchor || "N/A"} · last5 ${d.jump_count_anchor || "0"} · ${d.jump_thresh_anchor || "N/A"} · last15 ${d.jump15_count || "0"} / ${d.jump15_count_anchor || "0"}`;
+      el("long-sigma").textContent = `${d.long_sigma_bps} (~${d.long_sigma_usd})`;
+      el("short30").textContent = d.short30;
+      el("short60").textContent = d.short60;
+      el("regime").textContent = d.regime;
+      el("avg-move").textContent = d.avg_move;
+      const sl = el("state-label");
+      sl.textContent = d.state_label;
+      sl.style.color = d.state_color;
+      el("state-er").textContent = d.state_er;
+      el("state-persist").textContent = d.state_persist;
+      el("state-run").textContent = d.state_run;
+      el("buffer-rows").innerHTML = d.buffer_rows;
+      el("jump-bars").innerHTML = d.jump_bars;
+      el("jump-bars-anchor").innerHTML = d.jump_bars_anchor || "<div class='muted'>N/A</div>";
+
+      const spot = spotMap[asset] ?? d.calc_spot_num;
+      el("live-spot").textContent = spot ? fmtSpot(spot) : "—";
+
+      updateMicro();
+      updateRangeMetrics();
+      updateMarketCondition();
+      updateDecision();
+      setToggleState();
+    }
+
+    const assetToggle = document.getElementById("asset-toggle");
+    if (assetToggle) {
+      assetToggle.addEventListener("click", (e) => {
+        if (!e.target.dataset.asset) return;
+        setActiveAsset(e.target.dataset.asset);
+      });
+    }
+
+    function setToggleState() {
+      assetToggle.querySelectorAll("button").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.asset === currentAsset);
+      });
+    }
+
+    function erf(x) {
+      const sign = x >= 0 ? 1 : -1;
+      x = Math.abs(x);
+      const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+      const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+      const t = 1 / (1 + p * x);
+      const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+      return sign * y;
+    }
+    function normCdf(x) { return 0.5 * (1 + erf(x / Math.SQRT2)); }
+    function timeLeft(tfMin) {
+      const tfMs = tfMin * 60 * 1000;
+      const now = Date.now();
+      const rem = now % tfMs;
+      const leftMs = rem === 0 ? tfMs : (tfMs - rem);
+      const leftSec = Math.max(0, Math.round(leftMs / 1000));
+      const m = Math.floor(leftSec / 60);
+      const s = leftSec % 60;
+      return { minutes: leftSec / 60, mm: m, ss: s };
+    }
+
+    function calcProb(S, K, tMin, sigma1m) {
+      if (!S || !K || sigma1m <= 0) return null;
+      const t = Math.max(tMin, 1e-6);
+      const sigT = sigma1m * Math.sqrt(t);
+      if (sigT <= 0) return S > K ? 1 : 0;
+      const d2 = (Math.log(S / K) - 0.5 * sigT * sigT) / sigT;
+      return normCdf(d2);
+    }
+
+    const decisionStrikeInput = document.getElementById("decision-strike");
+    const decisionToggle = document.getElementById("decision-toggle");
+
+    let decisionTf = 15;
+    let decisionStrike = "";
+    if (decisionStrikeInput) decisionStrikeInput.value = "";
+
+    function loadDecisionForAsset(asset) {
+      const cfg = decisionCfgByAsset[asset] || {};
+      decisionTf = cfg.tf === 5 ? 5 : 15;
+      decisionStrike = String(cfg.strike || "");
+      if (decisionStrikeInput) decisionStrikeInput.value = decisionStrike;
+      setActiveDecisionTf();
+    }
+
+    function saveDecisionForAsset(asset) {
+      decisionCfgByAsset[asset] = {
+        tf: decisionTf === 5 ? 5 : 15,
+        strike: String(decisionStrike || ""),
+      };
+      saveDecisionCfg();
+    }
+
+    function setActiveDecisionTf() {
+      if (!decisionToggle) return;
+      decisionToggle.querySelectorAll("button").forEach(btn => {
+        btn.classList.toggle("active", parseInt(btn.dataset.dtf, 10) === decisionTf);
+      });
+    }
+
+    setActiveDecisionTf();
+
+    if (decisionToggle) {
+      decisionToggle.addEventListener("click", (e) => {
+        if (!e.target.dataset.dtf) return;
+        decisionTf = parseInt(e.target.dataset.dtf, 10);
+        saveDecisionForAsset(currentAsset);
+        setActiveDecisionTf();
+        updateMicro();
+        updateDecision();
+      });
+    }
+
+    if (decisionStrikeInput) {
+      decisionStrikeInput.addEventListener("input", (e) => {
+        decisionStrike = e.target.value.replace(/,/g, "");
+        saveDecisionForAsset(currentAsset);
+        updateDecision();
+      });
+    }
+
+    function stdev(arr) {
+      const n = arr.length;
+      if (n < 2) return 0;
+      const mean = arr.reduce((a,b) => a+b, 0) / n;
+      let v = 0;
+      for (const x of arr) v += (x-mean)*(x-mean);
+      return Math.sqrt(v / (n-1));
+    }
+
+    function median(arr) {
+      if (!arr || !arr.length) return 0;
+      const xs = [...arr].sort((a, b) => a - b);
+      const n = xs.length;
+      const mid = Math.floor(n / 2);
+      if (n % 2 === 1) return xs[mid];
+      return 0.5 * (xs[mid - 1] + xs[mid]);
+    }
+
+    function fmtUsd(x) {
+      const ax = Math.abs(x);
+      if (ax < 1) return '$' + x.toFixed(4);
+      if (ax < 10) return '$' + x.toFixed(3);
+      if (ax < 100) return '$' + x.toFixed(2);
+      if (ax < 1000) return '$' + x.toFixed(1);
+      return '$' + x.toFixed(0);
+    }
+
+    function appendMicro(asset, sec, price) {
+      const m = microState[asset];
+      if (!m) return;
+      if (!m.secs.length) { m.secs.push(sec); m.prices.push(price); return; }
+      const lastSec = m.secs[m.secs.length - 1];
+      if (sec <= lastSec) { m.prices[m.prices.length - 1] = price; return; }
+      const lastPrice = m.prices[m.prices.length - 1];
+      if (sec - lastSec > 1) {
+        for (let s = lastSec + 1; s < sec; s++) { m.secs.push(s); m.prices.push(lastPrice); }
+      }
+      m.secs.push(sec); m.prices.push(price);
+      while (m.secs.length > m.windowSec) { m.secs.shift(); m.prices.shift(); }
+    }
+
+    function appendBinanceShort(asset, sec, price) {
+      const s = binanceShortState[asset];
+      if (!s) return;
+      if (!s.secs.length) {
+        s.secs.push(sec);
+        s.prices.push(price);
+        return;
+      }
+      const lastSec = s.secs[s.secs.length - 1];
+      if (sec <= lastSec) {
+        s.prices[s.prices.length - 1] = price;
+        return;
+      }
+      const lastPrice = s.prices[s.prices.length - 1];
+      if (sec - lastSec > 1) {
+        for (let t = lastSec + 1; t < sec; t++) {
+          s.secs.push(t);
+          s.prices.push(lastPrice);
+        }
+      }
+      s.secs.push(sec);
+      s.prices.push(price);
+      const minSec = sec - s.keepSec;
+      while (s.secs.length && s.secs[0] < minSec) {
+        s.secs.shift();
+        s.prices.shift();
+      }
+    }
+
+    function priceAtOrAfter(state, targetSec) {
+      for (let i = 0; i < state.secs.length; i++) {
+        if (state.secs[i] >= targetSec) return state.prices[i];
+      }
+      return null;
+    }
+
+    function liveRange(asset, windowSec) {
+      const s = binanceShortState[asset];
+      if (!s || s.prices.length < 2) return null;
+      const lastSec = s.secs[s.secs.length - 1];
+      const fromSec = lastSec - windowSec;
+      let hi = -Infinity, lo = Infinity;
+      for (let i = 0; i < s.secs.length; i++) {
+        if (s.secs[i] >= fromSec) {
+          if (s.prices[i] > hi) hi = s.prices[i];
+          if (s.prices[i] < lo) lo = s.prices[i];
+        }
+      }
+      if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
+      return { hi, lo, range: hi - lo };
+    }
+
+    function bucketedRangeStats(asset, bucketSec, lookbackSec) {
+      const s = binanceShortState[asset];
+      if (!s || s.prices.length < 2) return null;
+      const lastSec = s.secs[s.secs.length - 1];
+      const fromSec = lastSec - lookbackSec;
+      // Build buckets from the start of the lookback
+      const ranges = [];
+      for (let bStart = fromSec; bStart + bucketSec <= lastSec; bStart += bucketSec) {
+        const bEnd = bStart + bucketSec;
+        let hi = -Infinity, lo = Infinity, cnt = 0;
+        for (let i = 0; i < s.secs.length; i++) {
+          if (s.secs[i] >= bStart && s.secs[i] < bEnd) {
+            if (s.prices[i] > hi) hi = s.prices[i];
+            if (s.prices[i] < lo) lo = s.prices[i];
+            cnt++;
+          }
+        }
+        if (cnt >= 2 && Number.isFinite(hi) && Number.isFinite(lo)) {
+          ranges.push(hi - lo);
+        }
+      }
+      if (!ranges.length) return null;
+      const sorted = [...ranges].sort((a, b) => a - b);
+      const avg = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+      const idx90 = Math.min(Math.ceil(sorted.length * 0.9) - 1, sorted.length - 1);
+      return { avg, p90: sorted[Math.max(0, idx90)], n: ranges.length };
+    }
+
+    function updateRangeMetrics() {
+      // Live Range 60s
+      const r60 = liveRange(currentAsset, 60);
+      const lr60 = el("live-range-60");
+      if (lr60) lr60.textContent = r60
+        ? `${fmtUsd(r60.range)} (${fmtSpot(r60.lo)} – ${fmtSpot(r60.hi)})`
+        : "—";
+
+      // Avg & 90% Range for 1m buckets over last 30m
+      const stats1m = bucketedRangeStats(currentAsset, 60, 30 * 60);
+      const avgEl = el("avg-range-1m");
+      const p90El = el("p90-range-1m");
+      if (avgEl) {
+        const a1 = stats1m ? fmtUsd(stats1m.avg) : "—";
+        avgEl.textContent = `${a1}`;
+      }
+      if (p90El) {
+        const p1 = stats1m ? fmtUsd(stats1m.p90) : "—";
+        p90El.textContent = `${p1}`;
+      }
+    }
+
+    function buildTenSecondSeries(asset, lookbackSec) {
+      const m = microState[asset];
+      if (!m || m.prices.length < 3 || m.secs.length !== m.prices.length) return [];
+      const latestSec = m.secs[m.secs.length - 1];
+      const startSec = latestSec - Math.max(60, lookbackSec) + 1;
+      const bucketClose = new Map();
+      for (let i = 0; i < m.secs.length; i++) {
+        const sec = m.secs[i];
+        if (sec < startSec) continue;
+        const bucket = Math.floor(sec / 10) * 10;
+        bucketClose.set(bucket, m.prices[i]);
+      }
+      const buckets = [...bucketClose.keys()].sort((a, b) => a - b);
+      return buckets.map(b => ({ sec: b + 9, price: bucketClose.get(b) }));
+    }
+
+    function getMicroStats(asset, tfMin) {
+      const lookbackSec = Math.max(300, microState[asset]?.windowSec || 900);
+      const series = buildTenSecondSeries(asset, lookbackSec);
+      if (series.length < 6) return null;
+
+      const returns = [];
+      const retSec = [];
+      for (let i = 1; i < series.length; i++) {
+        const p0 = series[i - 1].price;
+        const p1 = series[i].price;
+        if (p0 > 0 && p1 > 0) {
+          returns.push(Math.log(p1 / p0));
+          retSec.push(series[i].sec);
+        }
+      }
+      if (returns.length < 5) return null;
+
+      const sigma = stdev(returns);
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const net = Math.log(series[series.length - 1].price / series[0].price);
+      const zMove = sigma > 0 ? net / (sigma * Math.sqrt(returns.length)) : 0;
+      const upFrac = returns.filter(r => r > 0).length / returns.length;
+
+      const latest = retSec.length ? retSec[retSec.length - 1] : Math.floor(Date.now() / 1000);
+      const from5 = latest - 300;
+      const fromWin = latest - lookbackSec;
+      const from1 = latest - 60;
+      const abs5 = [];
+      let n5 = 0;
+      let nWin = 0;
+      let jumpCount5 = 0;
+      let jumpCountWin = 0;
+      let burst1m = 0;
+      for (let i = 0; i < returns.length; i++) {
+        const r = returns[i];
+        const a = Math.abs(r);
+        const sec = retSec[i];
+        const isJump = sigma > 0 && a >= 2 * sigma;
+        if (sec >= fromWin) {
+          nWin += 1;
+          if (isJump) jumpCountWin += 1;
+        }
+        if (sec >= from5) {
+          n5 += 1;
+          abs5.push(a);
+          if (isJump) jumpCount5 += 1;
+        }
+        if (sec >= from1 && isJump) {
+          burst1m += 1;
+        }
+      }
+
+      const jumpRate5 = n5 > 0 ? (jumpCount5 / n5) : 0;
+      const jumpRateWin = nWin > 0 ? (jumpCountWin / nWin) : 0;
+      const maxJump5 = abs5.length ? Math.max(...abs5) : 0;
+      const medJump5 = abs5.length ? median(abs5) : 0;
+
+      return {
+        n: returns.length,
+        n5,
+        nWin,
+        sigma10s: sigma,
+        sigma1mEq: sigma * Math.sqrt(6),
+        mean,
+        net,
+        zMove,
+        upFrac,
+        jumpCount5,
+        jumpRate5,
+        jumpCountWin,
+        jumpRateWin,
+        burst1m,
+        maxJump5,
+        medJump5,
+      };
+    }
+
+    function conditionBand(score) {
+      if (score >= 80) return { label: "VERY GOOD", color: "#22c55e" };
+      if (score >= 65) return { label: "GOOD", color: "#84cc16" };
+      if (score >= 45) return { label: "MEDIUM", color: "#f59e0b" };
+      if (score >= 25) return { label: "BAD", color: "#f97316" };
+      return { label: "VERY BAD", color: "#ef4444" };
+    }
+
+    function computeMarketCondition(asset) {
+      const d = ASSET_DATA[asset];
+      if (!d) return null;
+      const micro = getMicroStats(asset, decisionTf);
+      if (!micro || micro.n < 10) {
+        return {
+          score: 0,
+          label: "BUILDING",
+          color: "#94a3b8",
+          meta: `Collecting samples (${micro ? micro.n : 0})...`,
+        };
+      }
+
+      const stateLabel = d.state_label || "NEUTRAL";
+      const stateTrend = stateLabel.startsWith("TREND_")
+        ? clamp(d.state_er_raw * (0.7 + 0.3 * d.state_persist_raw), 0, 1)
+        : 0;
+      const microTrend = clamp(Math.abs(micro.zMove) / 2.4, 0, 1);
+      const directionConsistency = clamp(Math.abs(micro.upFrac - 0.5) * 2, 0, 1);
+      const runNorm = clamp(d.state_run_raw / (decisionTf === 5 ? 3 : 5), 0, 1);
+      const persistNorm = clamp((d.state_persist_raw - 0.5) / 0.5, 0, 1);
+      const health = clamp(d.current_score_raw / 100, 0, 1);
+
+      const jumpPenalty = clamp(
+        (0.50 * micro.jumpRate5) + (0.30 * micro.jumpRateWin) + (0.20 * d.jump_rate_60m_raw),
+        0,
+        1
+      );
+      const burstPenalty = clamp(micro.burst1m / (decisionTf === 5 ? 4 : 6), 0, 1);
+      const regimePenalty = clamp((d.regime_ratio_raw - 1.0) / 1.8, 0, 1);
+      const chopPenalty = stateLabel === "CHOP" ? 0.55 : (stateLabel === "NEUTRAL" ? 0.20 : 0.0);
+      const noisePenalty = clamp(
+        0.45 * jumpPenalty + 0.20 * burstPenalty + 0.25 * regimePenalty + 0.10 * chopPenalty,
+        0,
+        1
+      );
+
+      const signalQuality = clamp(
+        0.40 * stateTrend + 0.30 * microTrend + 0.15 * directionConsistency + 0.15 * runNorm,
+        0,
+        1
+      );
+      const base = clamp(
+        (0.55 * signalQuality) + (0.20 * persistNorm) + (0.25 * health),
+        0,
+        1
+      );
+      const dataQuality = clamp(micro.n / (decisionTf === 5 ? 24 : 38), 0.35, 1.0);
+      const finalScore = 100 * clamp((base * (1 - noisePenalty)) * dataQuality, 0, 1);
+      const band = conditionBand(finalScore);
+      return {
+        score: finalScore,
+        label: band.label,
+        color: band.color,
+        meta: `trend ${(signalQuality*100).toFixed(0)} · noise ${(noisePenalty*100).toFixed(0)} · jumps ${(micro.jumpRate5*100).toFixed(1)}%/${(micro.jumpRateWin*100).toFixed(1)}% · regime ${d.regime_ratio_raw.toFixed(2)}x`,
+      };
+    }
+
+    function updateMarketCondition() {
+      const out = computeMarketCondition(currentAsset);
+      const labelEl = el("market-condition-label");
+      const scoreEl = el("market-condition-score");
+      const metaEl = el("market-condition-meta");
+      if (!labelEl || !scoreEl || !metaEl || !out) return;
+      labelEl.textContent = out.label;
+      labelEl.style.color = out.color;
+      if (out.label === "BUILDING") {
+        scoreEl.textContent = "Score: —";
+      } else {
+        scoreEl.textContent = `Score: ${out.score.toFixed(1)}/100`;
+      }
+      metaEl.textContent = out.meta;
+    }
+
+    function updateMicro() {
+      const m = microState[currentAsset];
+      updateStreamHealth(currentAsset);
+      if (!m || m.prices.length < 5) {
+        setMicroStatus("Collecting live ticks...");
+        updateMarketCondition();
+        return;
+      }
+      const stats = getMicroStats(currentAsset, decisionTf);
+      if (!stats) {
+        setMicroStatus("Building 10s buckets...");
+        el("micro-samples").textContent = `${Math.max(0, m.prices.length - 1)} raw`;
+        updateMarketCondition();
+        return;
+      }
+      const spot = spotMap[currentAsset] ?? m.prices[m.prices.length-1];
+      const sigmaBp = stats.sigma10s * 10000;
+      const sigmaUsd = stats.sigma10s * spot;
+      const sigma1mEq = stats.sigma1mEq;
+      const sigma15mEq = sigma1mEq * Math.sqrt(15);
+      const sigma1mBp = sigma1mEq * 10000;
+      const sigma1mUsd = sigma1mEq * spot;
+      const sigma15mBp = sigma15mEq * 10000;
+      const sigma15mUsd = sigma15mEq * spot;
+      const twoSigmaUsd = 2 * stats.sigma10s * spot;
+      const maxJumpUsd = stats.maxJump5 * spot;
+      const medJumpUsd = stats.medJump5 * spot;
+      setMicroStatus(`Active · 10s buckets · last ${Math.round((microState[currentAsset]?.windowSec || 900) / 60)}m`);
+      el("micro-sigma").textContent = `${sigmaBp.toFixed(2)} bp (~${fmtUsd(sigmaUsd)})`;
+      el("micro-sigma1m").textContent = `${sigma1mBp.toFixed(2)} bp (~${fmtUsd(sigma1mUsd)})`;
+      el("micro-sigma15").textContent = `${sigma15mBp.toFixed(2)} bp (~${fmtUsd(sigma15mUsd)})`;
+      el("micro-2sigma").textContent = `~${fmtUsd(twoSigmaUsd)}`;
+      el("micro-jumps5").textContent = `${stats.jumpCount5} / ${stats.n5}`;
+      el("micro-jumprate").textContent = `${(stats.jumpRate5 * 100).toFixed(1)}% / ${(stats.jumpRateWin * 100).toFixed(1)}%`;
+      el("micro-max5").textContent = `~${fmtUsd(maxJumpUsd)}`;
+      el("micro-med5").textContent = `~${fmtUsd(medJumpUsd)}`;
+      el("micro-samples").textContent = `${stats.n}`;
+      m.lastStats = {
+        sigma10s: stats.sigma10s,
+        sigma1mEq: stats.sigma1mEq,
+        sigma15mEq,
+        jumpCount5: stats.jumpCount5,
+        jumpRate5: stats.jumpRate5,
+        jumpRateWin: stats.jumpRateWin,
+        maxJump5: stats.maxJump5,
+        medJump5: stats.medJump5,
+        n: stats.n,
+      };
+      updateMarketCondition();
+      updateDecision();
+    }
+
+    function computeDecision(asset) {
+      const d = ASSET_DATA[asset];
+      if (!d) return null;
+      const S = spotMap[asset] ?? d.calc_spot_num;
+      const decisionStrikeLive = decisionStrikeInput
+        ? decisionStrikeInput.value.replace(/,/g, "").trim()
+        : "";
+      if (decisionStrikeLive !== decisionStrike) {
+        decisionStrike = decisionStrikeLive;
+        saveDecisionForAsset(asset);
+      }
+      const K = parseFloat(decisionStrikeLive.replace(/,/g, ""));
+      const t = timeLeft(decisionTf);
+      const tMin = t.minutes;
+      const timeText = `${t.mm}:${t.ss.toString().padStart(2,"0")}`;
+
+      const reasons = [];
+      const riskFlags = [];
+      if (!S || !Number.isFinite(S)) {
+        return {
+          action: "NO_TRADE",
+          badge: "WAIT",
+          confidence: 0,
+          iconClass: "wait",
+          timeText,
+          reasons: ["No live spot tick for current asset."],
+          meta: "Waiting for stream",
+        };
+      }
+      if (!K || !Number.isFinite(K)) {
+        return {
+          action: "NO_TRADE",
+          badge: "WAIT",
+          confidence: 0,
+          iconClass: "wait",
+          timeText,
+          reasons: ["Enter strike to activate decision model."],
+          meta: `Spot ${fmtSpot(S)} · tf ${decisionTf}m`,
+        };
+      }
+
+      const micro = getMicroStats(asset, decisionTf);
+      if (!micro || micro.n < (decisionTf === 5 ? 18 : 28)) {
+        return {
+          action: "NO_TRADE",
+          badge: "BUILDING_WINDOW",
+          confidence: 0,
+          iconClass: "wait",
+          timeText,
+          reasons: ["Collecting rolling window samples."],
+          meta: `Samples ${micro ? micro.n : 0} · need ${decisionTf === 5 ? 18 : 28}`,
+        };
+      }
+
+      const sigmaBlend = Math.max(1e-6, 0.55 * d.calc_sigma1m + 0.45 * micro.sigma1mEq);
+      const pYes = calcProb(S, K, tMin, sigmaBlend);
+      if (pYes === null) {
+        return {
+          action: "NO_TRADE",
+          badge: "WAIT",
+          confidence: 0,
+          iconClass: "wait",
+          timeText,
+          reasons: ["Probability model unavailable."],
+          meta: "Sigma unavailable",
+        };
+      }
+
+      const edge = pYes - 0.5;
+      const sigT = sigmaBlend * Math.sqrt(Math.max(tMin, 1e-6));
+      const zDist = sigT > 0 ? Math.log(S / K) / sigT : 0;
+      const strikeBp = ((S / K) - 1) * 10000;
+      const stateLabel = d.state_label || "NEUTRAL";
+      let fState = 0.0;
+      if (stateLabel.startsWith("TREND_UP")) fState = 0.35 + 0.65 * d.state_er_raw;
+      else if (stateLabel.startsWith("TREND_DOWN")) fState = -(0.35 + 0.65 * d.state_er_raw);
+      else if (stateLabel === "CHOP") fState = -0.1;
+
+      // Strike sensitivity: reduce saturation so changing strike moves outputs visibly.
+      const fProb = clamp(edge / 0.30, -1, 1);
+      const fDist = clamp(zDist / 3.50, -1, 1);
+      const fMicro = clamp(micro.zMove / 2.2, -1, 1);
+      const jumpPenalty = clamp(
+        (0.45 * micro.jumpRate5) + (0.30 * micro.jumpRateWin) + (0.25 * d.jump_rate_60m_raw),
+        0,
+        1
+      );
+      const volPenalty = clamp((d.regime_ratio_raw - 1.0) / 1.4, 0, 1);
+
+      const timePressure = clamp((decisionTf - tMin) / Math.max(decisionTf, 1e-6), 0, 1);
+      const strikeInfluence = clamp(Math.abs(zDist) / 2.5, 0, 1);
+      const directional =
+        0.52 * fProb +
+        0.24 * fDist +
+        0.18 * fMicro +
+        0.06 * fState;
+      const score =
+        directional -
+        0.14 * jumpPenalty -
+        0.10 * volPenalty +
+        0.06 * Math.sign(directional || 0) * timePressure * strikeInfluence;
+
+      let threshold = decisionTf === 5 ? 0.13 : 0.10;
+      threshold += 0.06 * jumpPenalty + 0.04 * volPenalty;
+      if (Math.abs(zDist) < 0.25) threshold += 0.04;
+      else if (Math.abs(zDist) < 0.50) threshold += 0.02;
+      if (tMin < 1.0) threshold += 0.06;
+      else if (tMin < 2.0) threshold += 0.04;
+      else if (tMin < 4.0) threshold += 0.02;
+
+      let hardBlock = false;
+      if (micro.burst1m >= (decisionTf === 5 ? 4 : 5)) {
+        hardBlock = true;
+        riskFlags.push(`micro jump burst ${micro.burst1m}/1m`);
+      }
+      if (d.jump15_count_raw >= (decisionTf === 5 ? 5 : 7)) {
+        hardBlock = true;
+        riskFlags.push(`15m jump count ${d.jump15_count_raw}`);
+      }
+      if (d.regime_ratio_raw > 3.2) {
+        hardBlock = true;
+        riskFlags.push(`regime ratio ${d.regime_ratio_raw.toFixed(2)}x`);
+      }
+      if (tMin < 0.10) {
+        hardBlock = true;
+        riskFlags.push("time-left under 6s");
+      }
+
+      let action = "NO_TRADE";
+      let badge = "WAIT";
+      let iconClass = "wait";
+      if (!hardBlock) {
+        if (score >= threshold) {
+          action = "BUY_UP";
+          badge = "UP_EDGE";
+          iconClass = "up";
+        } else if (score <= -threshold) {
+          action = "BUY_DOWN";
+          badge = "DOWN_EDGE";
+          iconClass = "down";
+        }
+      } else {
+        badge = "RISK_LOCK";
+      }
+
+      const contributions = [
+        { k: "prob", v: 0.40 * fProb },
+        { k: "dist", v: 0.16 * fDist },
+        { k: "micro", v: 0.22 * fMicro },
+        { k: "state", v: 0.12 * fState },
+        { k: "jump", v: -0.14 * jumpPenalty },
+        { k: "vol", v: -0.10 * volPenalty },
+      ].sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+      reasons.push(
+        `KΔ ${strikeBp.toFixed(0)}bp · pYes ${(pYes * 100).toFixed(1)}% · edge ${(edge * 100).toFixed(1)}% · zDist ${zDist.toFixed(2)}`
+      );
+      reasons.push(
+        `micro zMove ${micro.zMove.toFixed(2)} · jump 5m/15m ${(micro.jumpRate5 * 100).toFixed(1)}%/${(micro.jumpRateWin * 100).toFixed(1)}% · max5m ${(micro.maxJump5 * 10000).toFixed(1)}bp`
+      );
+      const lastTickMs = Math.max(
+        chainlinkState.lastTickByAsset[asset] || 0,
+        binanceState.lastTickByAsset[asset] || 0
+      );
+      const tickAge = lastTickMs
+        ? Math.max(0, Math.round((Date.now() - lastTickMs) / 1000))
+        : null;
+      if (tickAge !== null) reasons.push(`live tick age ${tickAge}s`);
+      reasons.push(
+        `dominant: ${contributions[0].k} ${contributions[0].v >= 0 ? "+" : ""}${contributions[0].v.toFixed(3)}`
+      );
+      if (riskFlags.length) reasons.push(`gates: ${riskFlags.join(", ")}`);
+
+      const baseConf = sigmoid((Math.abs(score) - threshold) * 10);
+      const qData = clamp(micro.n / (decisionTf === 5 ? 28 : 50), 0.25, 1.0);
+      const qTime = clamp(tMin / (decisionTf === 5 ? 2.0 : 5.0), 0.35, 1.0);
+      const qJump = clamp(1.0 - jumpPenalty, 0.3, 1.0);
+      const qHealth = clamp(d.current_score_raw / 100.0, 0.4, 1.0);
+      const qStrike = clamp(Math.abs(edge) * 2.2 + Math.abs(zDist) * 0.12, 0.10, 1.0);
+
+      // Edge-aware quality blending: when probability edge is extreme,
+      // quality factors matter far less — the signal overwhelms the noise.
+      const edgeCertainty = clamp(Math.abs(edge) / 0.45, 0, 1);
+      const qualityProduct = qData * qTime * qJump * qHealth * qStrike;
+      const blendedQuality = edgeCertainty * 1.0 + (1 - edgeCertainty) * qualityProduct;
+      let confidence = 100 * baseConf * blendedQuality;
+      if (action === "NO_TRADE") {
+        // Keep confidence informative even in NO_TRADE mode (avoid flat 49% display).
+        const penalty = hardBlock ? 0.40 : 0.65;
+        confidence *= penalty;
+      }
+      confidence = clamp(confidence, 0, 99);
+
+      return {
+        action,
+        badge,
+        confidence,
+        iconClass,
+        timeText,
+        reasons,
+        meta: `tf ${decisionTf}m · K ${fmtSpot(K)} · pYes ${(pYes*100).toFixed(1)}% · left ${tMin.toFixed(2)}m · score ${score.toFixed(3)} · thr ${threshold.toFixed(3)} · jumpPen ${jumpPenalty.toFixed(2)}`,
+      };
+    }
+
+    function renderDecision(decision) {
+      if (!decision) return;
+      const icon = el("decision-icon");
+      const actionEl = el("decision-action");
+      const badgeEl = el("decision-badge");
+      const confEl = el("decision-confidence");
+      const meterEl = el("decision-meter");
+      const whyEl = el("decision-reasons");
+      const metaEl = el("decision-meta");
+      const timeEl = el("decision-time");
+      if (!icon || !actionEl || !badgeEl || !confEl || !meterEl || !whyEl || !metaEl) return;
+
+      icon.classList.remove("up", "down", "wait");
+      icon.classList.add(decision.iconClass || "wait");
+      actionEl.textContent = decision.action;
+      badgeEl.textContent = decision.badge;
+      confEl.textContent = `Confidence: ${decision.confidence.toFixed(1)}%`;
+      meterEl.style.width = `${decision.confidence.toFixed(1)}%`;
+      if (timeEl && decision.timeText) timeEl.textContent = decision.timeText;
+      whyEl.textContent = (decision.reasons && decision.reasons.length)
+        ? decision.reasons.join(" | ")
+        : "No decision details.";
+      metaEl.textContent = decision.meta || "";
+    }
+
+    function updateDecision() {
+      const decision = computeDecision(currentAsset);
+      renderDecision(decision);
+    }
+
+    function connectChainlink() {
+      const ws = new WebSocket("wss://ws-live-data.polymarket.com");
+      let pingTimer = null;
+      ws.addEventListener("open", () => {
+        chainlinkState.connected = true;
+        const subs = CHAINLINK_SYMBOLS.map(s => ({
+          topic: "crypto_prices_chainlink",
+          type: "*",
+          filters: `{\"symbol\":\"${s}\"}`
+        }));
+        ws.send(JSON.stringify({ action: "subscribe", subscriptions: subs }));
+        pingTimer = setInterval(() => { try { ws.send("PING"); } catch (_) {} }, 5000);
+      });
+      ws.addEventListener("message", (event) => {
+        try {
+          chainlinkState.lastMsgMs = Date.now();
+          const data = JSON.parse(event.data);
+          if (data.topic === "crypto_prices_chainlink" && data.payload && data.payload.value) {
+            const price = parseFloat(data.payload.value);
+            const sym = data.payload.symbol || data.payload.asset || "";
+            const asset = parseAssetFromSymbol(sym);
+            if (asset && ASSET_DATA[asset] && !Number.isNaN(price) && shouldAcceptTick("chainlink", asset)) {
+              spotMap[asset] = price;
+              chainlinkState.lastTickByAsset[asset] = Date.now();
+              const sec = Math.floor(Date.now() / 1000);
+              appendMicro(asset, sec, price);
+              saveMicroState();
+              if (asset === currentAsset) {
+                updateMicro();
+                updateDecision();
+              }
+            }
+          }
+        } catch (_) {}
+      });
+      ws.addEventListener("close", () => {
+        chainlinkState.connected = false;
+        if (pingTimer) clearInterval(pingTimer);
+        setTimeout(connectChainlink, 2000);
+      });
+      ws.addEventListener("error", () => {
+        chainlinkState.connected = false;
+        try { ws.close(); } catch (_) {}
+      });
+    }
+
+    function connectBinance() {
+      const streams = ASSETS
+        .map(asset => (BINANCE_SYMBOLS[asset] || "").toLowerCase())
+        .filter(Boolean)
+        .map(sym => `${sym}@trade`);
+      if (!streams.length) return;
+      const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams.join("/")}`);
+      ws.addEventListener("open", () => {
+        binanceState.connected = true;
+      });
+      ws.addEventListener("message", (event) => {
+        try {
+          binanceState.lastMsgMs = Date.now();
+          const msg = JSON.parse(event.data);
+          const payload = msg && msg.data ? msg.data : msg;
+          const sym = (payload && payload.s) ? String(payload.s).toUpperCase() : "";
+          const priceRaw = payload ? (payload.p ?? payload.c) : null;
+          const price = parseFloat(priceRaw);
+          const asset = parseAssetFromSymbol(sym);
+          if (asset && ASSET_DATA[asset] && !Number.isNaN(price)) {
+            const nowMs = Date.now();
+            binanceState.lastTickByAsset[asset] = nowMs;
+            const sec = Math.floor(nowMs / 1000);
+            appendBinanceShort(asset, sec, price);
+            if (asset === currentAsset) {
+              el("live-spot").textContent = fmtSpot(price);
+              updateRangeMetrics();
+            }
+            if (!shouldAcceptTick("binance", asset)) return;
+
+            spotMap[asset] = price;
+            appendMicro(asset, sec, price);
+            saveMicroState();
+            if (asset === currentAsset) {
+              updateMicro();
+              updateDecision();
+            }
+          }
+        } catch (_) {}
+      });
+      ws.addEventListener("close", () => {
+        binanceState.connected = false;
+        setTimeout(connectBinance, 2000);
+      });
+      ws.addEventListener("error", () => {
+        binanceState.connected = false;
+        try { ws.close(); } catch (_) {}
+      });
+    }
+
+    restoreMicroState();
+    restoreBinanceShortState();
+    restoreDecisionCfg();
+    setActiveAsset(currentAsset);
+    setActiveDecisionTf();
+    updateMicro();
+    updateRangeMetrics();
+    updateMarketCondition();
+    updateDecision();
+    setInterval(updateMicro, 1000);
+    setInterval(updateRangeMetrics, 1000);
+    setInterval(updateMarketCondition, 1000);
+    setInterval(updateDecision, 1000);
+    setInterval(() => updateStreamHealth(currentAsset), 1000);
+    setInterval(() => { saveMicroState(); saveBinanceShortState(); }, 5000);
+    window.addEventListener("beforeunload", () => { saveMicroState(); saveBinanceShortState(); });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") { saveMicroState(); saveBinanceShortState(); }
+    });
+    // Binance stream is always connected for short-window diagnostics.
+    connectBinance();
+    if (LIVE_SOURCE_MODE === "chainlink") {
+      connectChainlink();
+    } else if (LIVE_SOURCE_MODE === "auto") {
+      connectChainlink();
+    }
+
+    let t = 60;
+    const rt = document.getElementById("refresh-t");
+    setInterval(() => {
+      t -= 1;
+      if (t <= 0) location.reload();
+      else rt.textContent = t;
+    }, 1000);
+  </script>
+</body>
+</html>

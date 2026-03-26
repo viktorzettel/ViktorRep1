@@ -1,0 +1,22 @@
+BTC Time-of-Day Volatility Analysis
+Rows: 265000
+Global sigma (1m returns): 6.36 bp
+
+Top 5 volatile NY half-hours (mean abs ret):
+  09:30 NY | mean abs 7.52 bp | jump2 18.79%
+  10:00 NY | mean abs 7.02 bp | jump2 15.91%
+  10:30 NY | mean abs 5.96 bp | jump2 12.44%
+  11:00 NY | mean abs 5.82 bp | jump2 10.78%
+  11:30 NY | mean abs 5.22 bp | jump2 8.88%
+
+Top 5 calm NY half-hours (mean abs ret):
+  06:30 NY | mean abs 2.76 bp | jump2 1.96%
+  05:30 NY | mean abs 2.79 bp | jump2 1.99%
+  23:30 NY | mean abs 2.80 bp | jump2 2.07%
+  02:30 NY | mean abs 2.88 bp | jump2 2.12%
+  01:30 NY | mean abs 2.89 bp | jump2 2.20%
+
+Session summary (UTC windows):
+  Asia: mean abs 3.35 bp, jump2 3.27%, samples 88319
+  London: mean abs 3.87 bp, jump2 5.21%, samples 99402
+  NY: mean abs 4.85 bp, jump2 8.04%, samples 99402

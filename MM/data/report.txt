@@ -1,0 +1,49 @@
+=== Reversal Model Report ===
+
+Snapshot price: open
+Last minutes used: 5
+ATR quantiles (33%, 67%): [34.14677143 65.2906    ]
+Vol_z quantiles (33%, 67%): [-0.51876282  0.3975491 ]
+
+Train threshold eval (calibrated):
+ threshold  trades  reversal_rate
+      0.05    8386       0.023015
+      0.10   17211       0.049561
+
+Test threshold eval (calibrated):
+ threshold  trades  reversal_rate
+      0.05    2320       0.040517
+      0.10    4462       0.066114
+
+Test summary by regime/time_left:
+regime  time_left  threshold  trades  reversal_rate
+  High          1       0.05     297       0.013468
+  High          1       0.10     496       0.060484
+  High          2       0.05     206       0.009709
+  High          2       0.10     425       0.049412
+  High          3       0.05     140       0.028571
+  High          3       0.10     336       0.056548
+  High          4       0.05      79       0.025316
+  High          4       0.10     232       0.038793
+  High          5       0.05      43       0.023256
+  High          5       0.10     141       0.035461
+   Low          1       0.05     361       0.036011
+   Low          1       0.10     524       0.057252
+   Low          2       0.05     257       0.073930
+   Low          2       0.10     430       0.097674
+   Low          3       0.05     187       0.096257
+   Low          3       0.10     324       0.092593
+   Low          4       0.05     128       0.085938
+   Low          4       0.10     236       0.101695
+   Low          5       0.05      84       0.130952
+   Low          5       0.10     168       0.119048
+   Med          1       0.05     209       0.014354
+   Med          1       0.10     386       0.051813
+   Med          2       0.05     150       0.020000
+   Med          2       0.10     304       0.062500
+   Med          3       0.05      89       0.022472
+   Med          3       0.10     216       0.064815
+   Med          4       0.05      56       0.017857
+   Med          4       0.10     152       0.052632
+   Med          5       0.05      34       0.000000
+   Med          5       0.10      92       0.043478

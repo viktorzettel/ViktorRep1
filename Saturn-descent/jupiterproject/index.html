@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saturn Descent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-CxjTxnIT.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-03hq0-pr.css">
+</head>
+
+<body>
+  <div id="ui-container">
+    <div class="hud-item">
+      <span class="hud-label">SPEED</span>
+      <span class="hud-value" id="speed-value">25 KM/S</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">SURFACE DIST</span>
+      <span class="hud-value" id="altitude-value">-- KM</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">SUN DIST</span>
+      <span class="hud-value" id="sun-dist-value">-- KM</span>
+    </div>
+  </div>
+  <div id="intro-message">DESCENDING DIRECTLY INTO JUPITER. CURRENT SPEED: 25 KILOMETERS PER SECOND.</div>
+  <div id="warp-notification">TRAVELLING AT 1% OF SPEED OF LIGHT</div>
+  <div id="atmosphere-notification">ENTERING ATMOSPHERE</div>
+  <div id="pressure-warning">WARNING: PRESSURE RISING</div>
+
+  <div id="nav-container">
+    <div id="nav-icon">☰</div>
+    <div id="nav-bar">
+      <div class="nav-btn" data-target="SUN">SUN</div>
+      <div class="nav-btn" data-target="MERCURY">MERCURY</div>
+      <div class="nav-btn" data-target="VENUS">VENUS</div>
+      <div class="nav-btn" data-target="EARTH">EARTH</div>
+      <div class="nav-btn" data-target="MARS">MARS</div>
+      <div class="nav-btn" data-target="JUPITER">JUPITER</div>
+      <div class="nav-btn" data-target="SATURN">SATURN</div>
+      <div class="nav-btn" data-target="URANUS">URANUS</div>
+      <div class="nav-btn" data-target="NEPTUNE">NEPTUNE</div>
+    </div>
+  </div>
+
+  <div id="info-icon">i</div>
+
+  <div id="info-box">
+    <h2>MISSION CONTROLS - USE KEYBOARD</h2>
+    <ul>
+      <li><span class="key">ARROWS</span> Look Around</li>
+      <li><span class="key">SPACE</span> Warp Speed (1% c)</li>
+      <li><span class="key">1-4</span> Jump to Altitude</li>
+      <li><span class="key">5</span> Light Speed Travel (Realistic)</li>
+      <li><span class="key">6</span> Teleport to Earth</li>
+      <li><span class="key">J</span> Return to Jupiter</li>
+      <li><span class="key">CLICK</span> Teleport to Object</li>
+    </ul>
+    <div id="info-box-close">CLOSE</div>
+  </div>
+
+  <div id="about-icon">?</div>
+
+  <div id="about-box">
+    <h2>PROJECT: CELESTIAL SCALE</h2>
+    <p>
+      Originally designed as a Jupiter descent simulation, this project has evolved into a journey across the solar
+      system.
+      Experience the true scale of our celestial neighborhood. Sizes and distances of all objects are 100% accurately
+      scaled.
+    </p>
+    <div id="about-box-close">CLOSE</div>
+  </div>
+
+
+  <div id="signal-lost-overlay"></div>
+  <div id="signal-lost-message">
+    <div>ATMOSPHERIC PRESSURE CRITICAL</div>
+    <div style="font-size: 3rem; margin-top: 20px; color: red;">SIGNAL LOST</div>
+  </div>
+
+</body>
+
+</html>

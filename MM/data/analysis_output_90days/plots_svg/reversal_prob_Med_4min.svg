@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420">
+<rect width="900" height="420" fill="white" />
+<line x1="60" y1="20" x2="60" y2="380" stroke="#333" />
+<line x1="60" y1="380" x2="880" y2="380" stroke="#333" />
+<line x1="60" y1="357.87" x2="880" y2="357.87" stroke="#d00" stroke-dasharray="4,4" />
+<line x1="60" y1="335.74" x2="880" y2="335.74" stroke="#0a0" stroke-dasharray="4,4" />
+<path d="M 60.00,380.00 L 123.08,380.00 L 186.15,380.00 L 249.23,380.00 L 312.31,373.89 L 375.38,299.94 L 438.46,286.03 L 501.54,373.63 L 564.62,380.00 L 627.69,380.00 L 690.77,380.00 L 753.85,380.00 L 880.00,380.00" fill="none" stroke="#999" stroke-width="1" />
+<path d="M 60.00,88.96 L 123.08,279.05 L 186.15,339.37 L 249.23,371.54 L 312.31,360.74 L 375.38,274.67 L 438.46,259.51 L 501.54,360.85 L 564.62,370.39 L 627.69,347.83 L 690.77,247.61 L 753.85,187.72 L 880.00,28.85" fill="none" stroke="#999" stroke-width="1" />
+<path d="M 60.00,380.00 L 123.08,380.00 L 186.15,380.00 L 249.23,380.00 L 312.31,369.11 L 375.38,287.94 L 438.46,273.33 L 501.54,368.91 L 564.62,380.00 L 627.69,380.00 L 690.77,380.00 L 753.85,380.00 L 880.00,380.00" fill="none" stroke="#1f77b4" stroke-width="2" />
+<text x="60" y="16" font-size="12" fill="#333">Med Regime - 4 Min Left</text>
+<text x="390.0" y="414" font-size="12" fill="#333">Delta (price - strike)</text>
+<text x="10" y="210.0" font-size="12" fill="#333" transform="rotate(-90 10,210.0)">Reversal Prob</text>
+</svg>
