@@ -1,0 +1,31 @@
+{
+  "grid_events": 23945,
+  "matrix_by_time_left_rows": 224,
+  "matrix_rows": 56,
+  "outputs": [
+    "polymarket_grid_events_enriched.csv",
+    "polymarket_grid_matrix.csv",
+    "polymarket_grid_matrix_by_timeleft.csv",
+    "polymarket_grid_matrix_pivot.csv"
+  ],
+  "pivot_matrix_rows": 14,
+  "sessions": [
+    "20260421T202422Z",
+    "20260422T202134Z",
+    "20260423T164851Z",
+    "20260424T092134Z",
+    "20260424T175300Z",
+    "20260425T092927Z",
+    "20260427T092525Z",
+    "20260427T141724Z",
+    "20260427T185610Z",
+    "20260428T060825Z",
+    "20260428T133101Z",
+    "20260429T060822Z",
+    "20260429T151244Z",
+    "20260429T151512Z",
+    "20260429T215613Z",
+    "20260430T105555Z",
+    "20260430T110859Z"
+  ]
+}

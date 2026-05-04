@@ -1,0 +1,15 @@
+{
+  "grid_events": 397,
+  "matrix_by_time_left_rows": 23,
+  "matrix_rows": 7,
+  "outputs": [
+    "polymarket_grid_events_enriched.csv",
+    "polymarket_grid_matrix.csv",
+    "polymarket_grid_matrix_by_timeleft.csv",
+    "polymarket_grid_matrix_pivot.csv"
+  ],
+  "pivot_matrix_rows": 7,
+  "sessions": [
+    "20260430T110859Z"
+  ]
+}

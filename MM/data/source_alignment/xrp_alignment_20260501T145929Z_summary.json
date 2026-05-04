@@ -1,0 +1,29 @@
+{
+  "basis_abs": {
+    "max": 0.00337703,
+    "median": 8.438e-05,
+    "p90": 0.00021764,
+    "p95": 0.00028657,
+    "p99": 0.00057923
+  },
+  "csv_path": "data/source_alignment/xrp_alignment_20260501T145929Z.csv",
+  "final30_basis_abs": {
+    "max": 0.00053345,
+    "median": 7.474e-05,
+    "p95": 0.00030499,
+    "samples": 351
+  },
+  "rows": 3591,
+  "runtime_seconds": 3600.45,
+  "session_id": "20260501T145929Z",
+  "spikes": {
+    "count": 80,
+    "max_duration_s": 9.022,
+    "median_duration_s": 1.002,
+    "threshold": 0.0003
+  },
+  "strike_basis_abs": {
+    "max": 0.00033586,
+    "median": 0.00011985
+  }
+}

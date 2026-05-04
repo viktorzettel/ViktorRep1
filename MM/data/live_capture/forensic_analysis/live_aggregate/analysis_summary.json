@@ -1,0 +1,31 @@
+{
+  "complete_buckets": 1346,
+  "csv_outputs": {
+    "calibration_by_bin": "data/live_capture/forensic_analysis/live_aggregate/calibration_by_bin.csv",
+    "calibration_ece": "data/live_capture/forensic_analysis/live_aggregate/calibration_ece.csv",
+    "first_signal_condition_quality": "data/live_capture/forensic_analysis/live_aggregate/first_signal_condition_quality.csv",
+    "first_signal_losses": "data/live_capture/forensic_analysis/live_aggregate/first_signal_losses.csv",
+    "first_signal_summary": "data/live_capture/forensic_analysis/live_aggregate/first_signal_summary.csv",
+    "first_signals": "data/live_capture/forensic_analysis/live_aggregate/first_signals.csv",
+    "jump_sweep_summary": "data/live_capture/forensic_analysis/live_aggregate/jump_sweep_summary.csv",
+    "margin_z_hold_quality": "data/live_capture/forensic_analysis/live_aggregate/margin_z_hold_quality.csv",
+    "model_by_session": "data/live_capture/forensic_analysis/live_aggregate/model_by_session.csv",
+    "model_by_time_bin": "data/live_capture/forensic_analysis/live_aggregate/model_by_time_bin.csv",
+    "model_summary": "data/live_capture/forensic_analysis/live_aggregate/model_summary.csv",
+    "override_hold_quality": "data/live_capture/forensic_analysis/live_aggregate/override_hold_quality.csv",
+    "persistence_sweep": "data/live_capture/forensic_analysis/live_aggregate/persistence_sweep.csv",
+    "policy_hold_quality": "data/live_capture/forensic_analysis/live_aggregate/policy_hold_quality.csv",
+    "safety_hold_quality": "data/live_capture/forensic_analysis/live_aggregate/safety_hold_quality.csv",
+    "session_summary": "data/live_capture/forensic_analysis/live_aggregate/session_summary.csv"
+  },
+  "first_signal_count": 1146,
+  "joined_snapshots": 208129,
+  "session_count": 17,
+  "signal_threshold": 0.91,
+  "visual_outputs": [
+    "data/live_capture/forensic_analysis/live_aggregate/visuals/first_signal_by_session.png",
+    "data/live_capture/forensic_analysis/live_aggregate/visuals/model_accuracy_by_time_left.png",
+    "data/live_capture/forensic_analysis/live_aggregate/visuals/safety_hold_quality.png",
+    "data/live_capture/forensic_analysis/live_aggregate/visuals/margin_z_hold_quality_late120.png"
+  ]
+}

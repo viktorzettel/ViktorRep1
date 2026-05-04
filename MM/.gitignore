@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.Rhistory
+.kou_current_session
+*.sqlite3
+
+# Raw/high-volume research artifacts. Compact forensic reports are staged explicitly.
+data/live_capture/20*T*Z/
+data/analysis_output_5m_microstructure/
+data/analysis_output_5m_safety/
+data/*.csv.gz

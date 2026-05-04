@@ -1,0 +1,19 @@
+{
+  "cluster_win_rate": 0.9665271966527197,
+  "clusters": 956,
+  "feature_risk_rows": 34,
+  "losses": 32,
+  "outputs": {
+    "cluster_events": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/cluster_events.csv",
+    "cluster_regime_matrix": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/cluster_regime_matrix.csv",
+    "feature_risk_matrix": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/feature_risk_matrix.csv",
+    "loss_clusters": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/loss_clusters.csv",
+    "recommended_veto_candidates": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/recommended_veto_candidates.csv",
+    "report": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/reversal_regime_report.md",
+    "simple_veto_scan": "/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/forensic_analysis/reversal_regimes/simple_veto_scan.csv"
+  },
+  "recommended_rules": 15,
+  "regime_matrix_rows": 9,
+  "rule_scan_rows_kept": 250,
+  "wins": 924
+}
