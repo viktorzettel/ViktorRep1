@@ -112,6 +112,7 @@ class LiveOrderResult:
     amount: Optional[float]
     response: Optional[dict[str, Any]]
     ledger_path: Optional[str]
+    counts_as_successful_buy: bool
 
 
 @dataclass(frozen=True)
@@ -377,6 +378,20 @@ def live_submit_response_is_final(response: dict[str, Any]) -> bool:
     return bool(response.get("success") is True or response.get("orderID") or response.get("orderId") or response.get("id"))
 
 
+def non_executable_result(plan: ExecutionPlan, *, ledger_path: Optional[str] = None) -> LiveOrderResult:
+    return LiveOrderResult(
+        submitted=False,
+        status="not_submitted_non_executable",
+        reason=plan.reason,
+        order_type="-",
+        token_id=None if plan.token_quote is None else plan.token_quote.token_id,
+        amount=plan.estimated_cost,
+        response=None,
+        ledger_path=ledger_path,
+        counts_as_successful_buy=False,
+    )
+
+
 def _load_v2_sdk() -> dict[str, Any]:
     try:
         from py_clob_client_v2 import ApiCreds, ClobClient, MarketOrderArgs, OrderType, PartialCreateOrderOptions, Side
@@ -593,6 +608,7 @@ def submit_live_order(
         amount=plan.estimated_cost,
         response=response_payload,
         ledger_path=ledger_path,
+        counts_as_successful_buy=final,
     )
     append_ledger_event(
         ledger_path,
@@ -607,6 +623,7 @@ def submit_live_order(
             "order_type": result.order_type,
             "response": response_payload,
             "stop_required": not final,
+            "counts_as_successful_buy": final,
         },
     )
     if not final:

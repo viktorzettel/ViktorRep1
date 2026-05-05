@@ -382,6 +382,14 @@ Target session:
   - Step B: one manually armed tiny live session after Step A shows clean plans
   - Step C: stop immediately after any failed, partial, ambiguous, stale, or mismatched order response
 
+Ready-sniper execution principle:
+
+- The sniper should not wake up cold after the Kou signal.
+- The Polymarket sidecar already keeps the current/next 5m market, token IDs, CLOB books, endpoint prices, and quote health warm during the market.
+- When the market rolls, the sidecar should resolve the new market early and keep polling it through the first 3 minutes, so a late signal does not waste time discovering/logging into the market.
+- The live sniper should reuse this warm context where possible and only do one final pre-submit quote check.
+- If the desired YES/NO token is sold out, has no visible ask, has too little visible ask size for the intended `1 pUSD`, or returns an ambiguous/failed response, it must be recorded as `not_submitted` / `not_successful_buy`, not as a winning or losing trade.
+
 Hard live caps:
 
 - `max_order_cost <= 1.00`
@@ -396,6 +404,7 @@ Hard live caps:
 - no order if market end differs from the signal bucket by more than the configured tolerance
 - no order if visible book ask is missing
 - no order if visible ask size is below intended order size
+- no order if the token appears sold out / not executable
 - no order if visible book ask is above the signal max entry or sniper max entry
 - no order if `book_ask_price - endpoint_buy_price > 0.03`
 - no order after an order submit error until the session is manually reviewed
@@ -417,6 +426,7 @@ Current implementation status:
 - The SDK was installed locally as `py-clob-client-v2==1.0.0`.
 - Live submission writes a `live_order_plan` ledger row before submit and a `live_order_submitted` row after the response.
 - Ambiguous/failed/partial-looking responses raise a stop-required error and must end the session until manually reviewed.
+- Non-executable plans and sold-out/no-ask states are explicitly ledgered as not submitted and do not count as successful buys.
 - The private key pasted in chat should be treated as compromised; use a fresh tiny wallet or rotate/move funds before any live run.
 
 Execution assumptions:

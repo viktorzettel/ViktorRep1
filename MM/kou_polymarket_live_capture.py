@@ -2360,6 +2360,25 @@ class PolymarketQuoteCapture:
                     "plan": asdict(plan),
                 },
             )
+            if not plan.allow_submit:
+                with self.sniper_ledger_path.open("a", encoding="utf-8") as ledger_handle:
+                    append_jsonl(
+                        ledger_handle,
+                        {
+                            "event_type": "live_order_not_submitted",
+                            "session_id": self.session.session_id,
+                            "ts": safe_float(time.time(), 3),
+                            "iso_utc": utc_iso(time.time()),
+                            "shadow_order_id": order.get("shadow_order_id"),
+                            "market_slug": sniper_signal.get("market_slug"),
+                            "bucket_end": sniper_signal.get("bucket_end"),
+                            "side": sniper_signal.get("side"),
+                            "estimated_cost": plan.estimated_cost,
+                            "real_order_submitted": False,
+                            "counts_as_successful_buy": False,
+                            "reason": plan.reason,
+                        },
+                    )
             if self.sniper_mode != "live":
                 return
 

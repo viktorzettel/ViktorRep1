@@ -203,6 +203,7 @@ class PolymarketTokenSniperTests(unittest.TestCase):
             rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
         self.assertTrue(result.submitted)
         self.assertEqual(result.status, "submitted_final_or_accepted")
+        self.assertTrue(result.counts_as_successful_buy)
         self.assertEqual(len(client.calls), 1)
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0]["event_type"], "live_order_plan")
@@ -224,6 +225,31 @@ class PolymarketTokenSniperTests(unittest.TestCase):
             rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(rows[-1]["event_type"], "live_order_submitted")
         self.assertTrue(rows[-1]["stop_required"])
+        self.assertFalse(rows[-1]["counts_as_successful_buy"])
+
+    def test_non_executable_plan_never_counts_as_buy(self):
+        result = sniper.non_executable_result(
+            make_plan(
+                allow_submit=False,
+                reason="missing_book_ask",
+                token_quote=sniper.TokenQuote(
+                    token_id="123",
+                    side="yes",
+                    buy_price=None,
+                    book_ask_price=None,
+                    book_ask_size=None,
+                    book_endpoint_delta=None,
+                    entry_price=None,
+                    entry_price_source=None,
+                ),
+                estimated_cost=None,
+            ),
+            ledger_path="session/live.jsonl",
+        )
+        self.assertFalse(result.submitted)
+        self.assertFalse(result.counts_as_successful_buy)
+        self.assertEqual(result.status, "not_submitted_non_executable")
+        self.assertEqual(result.reason, "missing_book_ask")
 
 
 if __name__ == "__main__":
