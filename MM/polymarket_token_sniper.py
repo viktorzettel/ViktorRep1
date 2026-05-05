@@ -16,6 +16,8 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Optional
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 import kou_polymarket_live_capture as pm
 
@@ -34,6 +36,7 @@ class KouBuySignal:
     reason: Optional[str] = None
     expires_at: Optional[float] = None
     source_age_s: Optional[float] = None
+    model_age_s: Optional[float] = None
     time_left_s: Optional[float] = None
     price: Optional[float] = None
     strike: Optional[float] = None
@@ -51,6 +54,7 @@ class KouBuySignal:
             reason=_optional_str(payload.get("reason")),
             expires_at=_optional_float(payload.get("expires_at")),
             source_age_s=_optional_float(payload.get("source_age_s")),
+            model_age_s=_optional_float(payload.get("model_age_s")),
             time_left_s=_optional_float(payload.get("time_left_s")),
             price=_optional_float(payload.get("price")),
             strike=_optional_float(payload.get("strike")),
@@ -61,12 +65,16 @@ class KouBuySignal:
 class SniperLimits:
     order_size: float = 1.0
     max_order_cost: float = 1.0
+    max_session_cost: float = 4.0
+    max_session_orders: int = 4
     max_entry_price: float = 0.98
     min_time_left_s: float = 5.0
     max_source_age_s: float = 3.0
+    max_model_age_s: float = 3.0
     max_book_endpoint_delta: float = 0.03
     min_visible_ask_size: float = 1.0
     market_end_tolerance_s: float = 2.0
+    require_geoblock_clear_for_live: bool = True
 
 
 @dataclass(frozen=True)
@@ -94,6 +102,26 @@ class ExecutionPlan:
     checks: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class GeoblockStatus:
+    checked: bool
+    blocked: Optional[bool]
+    country: Optional[str]
+    region: Optional[str]
+    ip: Optional[str]
+    reason: str
+
+
+@dataclass(frozen=True)
+class SessionRiskState:
+    ledger_path: Optional[str]
+    submitted_order_count: int
+    submitted_cost: float
+    planned_order_count: int
+    planned_cost: float
+    bucket_already_used: bool
+
+
 def _optional_str(value: Any) -> Optional[str]:
     if value is None:
         return None
@@ -118,6 +146,91 @@ def _required_float(payload: dict[str, Any], key: str) -> float:
     return value
 
 
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            rows.append(item)
+    return rows
+
+
+def check_geoblock(timeout_s: float = 5.0) -> GeoblockStatus:
+    req = urllib_request.Request(
+        "https://polymarket.com/api/geoblock",
+        headers={"accept": "application/json", "user-agent": "kou-sniper-preflight/0.1"},
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=timeout_s) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, urllib_error.URLError, json.JSONDecodeError) as exc:
+        return GeoblockStatus(
+            checked=False,
+            blocked=None,
+            country=None,
+            region=None,
+            ip=None,
+            reason=f"geoblock_check_failed:{type(exc).__name__}",
+        )
+    if not isinstance(payload, dict):
+        return GeoblockStatus(
+            checked=False,
+            blocked=None,
+            country=None,
+            region=None,
+            ip=None,
+            reason="geoblock_response_not_object",
+        )
+    blocked = payload.get("blocked")
+    return GeoblockStatus(
+        checked=True,
+        blocked=bool(blocked) if blocked is not None else None,
+        country=_optional_str(payload.get("country")),
+        region=_optional_str(payload.get("region")),
+        ip=_optional_str(payload.get("ip")),
+        reason="geoblock_clear" if blocked is False else "geoblock_blocked_or_unknown",
+    )
+
+
+def session_risk_state(ledger_path: Optional[str], signal: KouBuySignal) -> SessionRiskState:
+    if not ledger_path:
+        return SessionRiskState(None, 0, 0.0, 0, 0.0, False)
+    path = Path(ledger_path)
+    submitted_order_count = 0
+    submitted_cost = 0.0
+    planned_order_count = 0
+    planned_cost = 0.0
+    bucket_already_used = False
+    for row in _read_jsonl(path):
+        if bool(row.get("real_order_submitted")):
+            submitted_order_count += 1
+            submitted_cost += _optional_float(row.get("estimated_cost")) or 0.0
+        if row.get("event_type") in {"live_order_plan", "live_order_submitted"}:
+            planned_order_count += 1
+            planned_cost += _optional_float(row.get("estimated_cost")) or 0.0
+        row_bucket = _optional_float(row.get("bucket_end"))
+        row_slug = _optional_str(row.get("market_slug"))
+        if signal.bucket_end is not None and row_bucket is not None and abs(signal.bucket_end - row_bucket) <= 0.01:
+            bucket_already_used = True
+        if signal.market_slug and row_slug == signal.market_slug:
+            bucket_already_used = True
+    return SessionRiskState(
+        ledger_path=str(path),
+        submitted_order_count=submitted_order_count,
+        submitted_cost=pm.safe_float(submitted_cost, 6) or 0.0,
+        planned_order_count=planned_order_count,
+        planned_cost=pm.safe_float(planned_cost, 6) or 0.0,
+        bucket_already_used=bucket_already_used,
+    )
+
+
 def load_signal(path: Optional[str]) -> KouBuySignal:
     if path is None or path == "-":
         payload = json.loads(input())
@@ -135,6 +248,7 @@ def validate_signal(signal: KouBuySignal, limits: SniperLimits, now_ts: float) -
         "max_entry_price": signal.max_entry_price,
         "expires_at": signal.expires_at,
         "source_age_s": signal.source_age_s,
+        "model_age_s": signal.model_age_s,
         "time_left_s": signal.time_left_s,
     }
 
@@ -152,6 +266,10 @@ def validate_signal(signal: KouBuySignal, limits: SniperLimits, now_ts: float) -
         return False, "signal_source_age_missing", checks
     if signal.source_age_s > limits.max_source_age_s:
         return False, "signal_source_stale", checks
+    if signal.model_age_s is None:
+        return False, "signal_model_age_missing", checks
+    if signal.model_age_s > limits.max_model_age_s:
+        return False, "signal_model_stale", checks
     if signal.time_left_s is not None and signal.time_left_s < limits.min_time_left_s:
         return False, "signal_too_late", checks
     return True, "signal_valid", checks
@@ -216,11 +334,35 @@ def fetch_side_quote(client: Any, market: pm.MarketCandidate, side: str) -> Toke
     )
 
 
-def build_dry_run_plan(signal: KouBuySignal, limits: SniperLimits, *, env_file: str) -> ExecutionPlan:
+def build_dry_run_plan(
+    signal: KouBuySignal,
+    limits: SniperLimits,
+    *,
+    env_file: str,
+    ledger_path: Optional[str] = None,
+    require_geoblock_clear: bool = False,
+) -> ExecutionPlan:
     now_ts = time.time()
     ok, reason, checks = validate_signal(signal, limits, now_ts)
     if not ok:
         return ExecutionPlan(False, "dry_run_no_order", reason, signal, None, None, limits.order_size, None, checks)
+
+    risk_state = session_risk_state(ledger_path, signal)
+    checks["session_risk"] = asdict(risk_state)
+    if risk_state.bucket_already_used:
+        return ExecutionPlan(False, "dry_run_no_order", "bucket_already_used_in_session", signal, None, None, limits.order_size, None, checks)
+    if risk_state.submitted_order_count >= limits.max_session_orders:
+        return ExecutionPlan(False, "dry_run_no_order", "max_session_orders_reached", signal, None, None, limits.order_size, None, checks)
+    if risk_state.submitted_cost >= limits.max_session_cost:
+        return ExecutionPlan(False, "dry_run_no_order", "max_session_cost_reached", signal, None, None, limits.order_size, None, checks)
+
+    if require_geoblock_clear:
+        geoblock = check_geoblock()
+        checks["geoblock"] = asdict(geoblock)
+        if not geoblock.checked:
+            return ExecutionPlan(False, "dry_run_no_order", "geoblock_check_failed", signal, None, None, limits.order_size, None, checks)
+        if geoblock.blocked is not False:
+            return ExecutionPlan(False, "dry_run_no_order", "geoblock_not_clear", signal, None, None, limits.order_size, None, checks)
 
     market, market_checks = resolve_market(signal, now_ts)
     checks.update(market_checks)
@@ -266,6 +408,19 @@ def build_dry_run_plan(signal: KouBuySignal, limits: SniperLimits, *, env_file: 
             pm.safe_float(estimated_cost, 6),
             checks,
         )
+    if risk_state.submitted_cost + estimated_cost > limits.max_session_cost:
+        checks["session_risk"]["projected_submitted_cost"] = pm.safe_float(risk_state.submitted_cost + estimated_cost, 6)
+        return ExecutionPlan(
+            False,
+            "dry_run_no_order",
+            "projected_session_cost_above_limit",
+            signal,
+            market.slug,
+            quote,
+            limits.order_size,
+            pm.safe_float(estimated_cost, 6),
+            checks,
+        )
 
     return ExecutionPlan(
         True,
@@ -293,10 +448,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--env-file", default=".env", help="Env file with read/auth credentials for quote checks")
     parser.add_argument("--order-size", type=float, default=1.0, help="Intended token size for dry-run planning")
     parser.add_argument("--max-order-cost", type=float, default=1.0, help="Max pUSD cost for dry-run planning")
+    parser.add_argument("--max-session-cost", type=float, default=4.0, help="Max pUSD cost for a supervised live session")
+    parser.add_argument("--max-session-orders", type=int, default=4, help="Max submitted orders for a supervised live session")
     parser.add_argument("--max-entry-price", type=float, default=0.98, help="Sniper hard max entry price")
     parser.add_argument("--max-source-age-s", type=float, default=3.0, help="Max allowed signal source age")
+    parser.add_argument("--max-model-age-s", type=float, default=3.0, help="Max allowed signal model age")
     parser.add_argument("--max-book-endpoint-delta", type=float, default=0.03, help="Max allowed book ask minus endpoint buy price")
     parser.add_argument("--min-visible-ask-size", type=float, default=1.0, help="Minimum visible ask size")
+    parser.add_argument("--session-ledger", help="JSONL ledger used for one-order-per-bucket and session spend caps")
+    parser.add_argument("--require-geoblock-clear", action="store_true", help="Require Polymarket geoblock endpoint to return blocked=false before planning")
     parser.add_argument("--live", action="store_true", help="Attempt live submit; currently disabled by design")
     return parser.parse_args()
 
@@ -307,12 +467,21 @@ def main() -> int:
     limits = SniperLimits(
         order_size=max(0.0, float(args.order_size)),
         max_order_cost=max(0.0, float(args.max_order_cost)),
+        max_session_cost=max(0.0, float(args.max_session_cost)),
+        max_session_orders=max(0, int(args.max_session_orders)),
         max_entry_price=max(0.0, min(1.0, float(args.max_entry_price))),
         max_source_age_s=max(0.0, float(args.max_source_age_s)),
+        max_model_age_s=max(0.0, float(args.max_model_age_s)),
         max_book_endpoint_delta=max(0.0, float(args.max_book_endpoint_delta)),
         min_visible_ask_size=max(0.0, float(args.min_visible_ask_size)),
     )
-    plan = build_dry_run_plan(signal, limits, env_file=args.env_file)
+    plan = build_dry_run_plan(
+        signal,
+        limits,
+        env_file=args.env_file,
+        ledger_path=args.session_ledger,
+        require_geoblock_clear=bool(args.require_geoblock_clear or args.live),
+    )
     print(json.dumps(asdict(plan), indent=2, sort_keys=True))
     if args.live:
         submit_live_order(plan)

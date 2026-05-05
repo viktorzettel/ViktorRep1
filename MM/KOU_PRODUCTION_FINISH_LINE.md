@@ -363,6 +363,73 @@ Interpretation:
 - Market alignment check found `0` slug/bucket mismatches across grid rows and shadow orders.
 - Trade frequency is low: `4` accepted trades in `4h`, but the accepted trades had full visible book size and fresh source age.
 
+## Supervised Tiny Live-Test Plan
+
+The next milestone is no longer more broad data capture. The next milestone is a tightly capped, supervised live execution rehearsal that can graduate into a tiny real-money session only after the order path proves clean.
+
+Target session:
+
+- Asset: XRP 5m only
+- Source: `browser-poly-chainlink`
+- Candidate: `xrp_only_ultra_safe_v1_near_strike_exec_guard`
+- Runtime: `4h`
+- Order size: about `1 pUSD` maximum cost per accepted signal
+- Session cap: `4 pUSD` maximum total submitted cost
+- Max orders: `4` per session
+- Order frequency: max `1` order per Polymarket 5m market
+- Mode progression:
+  - Step A: dry-run execution rehearsal with live CLOB quote checks and session ledger, no order submission
+  - Step B: one manually armed tiny live session after Step A shows clean plans
+  - Step C: stop immediately after any failed, partial, ambiguous, stale, or mismatched order response
+
+Hard live caps:
+
+- `max_order_cost <= 1.00`
+- `max_session_cost <= 4.00`
+- `max_session_orders <= 4`
+- one order per `market_slug` / `bucket_end`
+- no order if `source_age_s > 3s`
+- no order if `model_age_s > 3s`
+- no order if signal is expired
+- no order if `time_left_s < 5s`
+- no order if resolved market slug differs from the signal slug
+- no order if market end differs from the signal bucket by more than the configured tolerance
+- no order if visible book ask is missing
+- no order if visible ask size is below intended order size
+- no order if visible book ask is above the signal max entry or sniper max entry
+- no order if `book_ask_price - endpoint_buy_price > 0.03`
+- no order after an order submit error until the session is manually reviewed
+
+Current implementation status:
+
+- [polymarket_token_sniper.py](/Users/viktorzettel/Downloads/ViktorAI/MM/polymarket_token_sniper.py) now has dry-run live preflight scaffolding for:
+  - model-age guard
+  - source-age guard
+  - session ledger reading
+  - one-order-per-bucket guard
+  - max session order count
+  - max session cost
+  - optional Polymarket geoblock endpoint preflight
+- Live order submission is still intentionally locked behind `submit_live_order()` and raises `NotImplementedError`.
+- This is deliberate: the next coding step is CLOB V2 order construction/submission, not another strategy change.
+
+Execution assumptions:
+
+- User reports that the Polymarket wallet has migrated to pUSD automatically.
+- Secrets must still stay outside the repo.
+- The bot should still run the exchange/platform geoblock endpoint from the actual operating environment as a preflight, even if legal/entity questions are handled outside the code.
+- The first live wallet should be a tiny funded wallet or tiny test allocation, not a main wallet.
+
+Next engineering steps:
+
+1. Confirm the installed/usable CLOB V2 Python SDK and exact method names for marketable buy orders.
+2. Extend `polymarket_token_sniper.py` from dry-run plan to live submit behind an explicit `--live --i-understand-real-money` style arm.
+3. Write every planned/submitted order to a session ledger before and after submission.
+4. Add post-submit verification: filled amount, average fill, order ID, status, and any remaining open order.
+5. Add an emergency stop rule: after any ambiguous response, stop the session.
+6. Run one live execution rehearsal with no submit.
+7. Then run one supervised `4 pUSD` maximum session.
+
 ## Points Still To Decide
 
 Most of the research logic is clear. The remaining unclear points are execution and operations, not the Kou model itself:
