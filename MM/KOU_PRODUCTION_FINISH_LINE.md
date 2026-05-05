@@ -428,7 +428,10 @@ Execution assumptions:
 
 Next engineering steps:
 
-1. Build or wire a small signal handoff so the exec-guard shadow candidate can emit one live-ready JSON signal to the sniper.
+1. Signal handoff is now wired in [kou_polymarket_live_capture.py](/Users/viktorzettel/Downloads/ViktorAI/MM/kou_polymarket_live_capture.py):
+   - `--sniper-mode signal` writes `sniper_signals.jsonl`
+   - `--sniper-mode dry-run` writes `sniper_signals.jsonl`, calls the sniper planner, and writes `sniper_plans.jsonl`
+   - `--sniper-mode live` can call the live CLOB V2 sniper, but only with `--sniper-live-ack`
 2. Run one live execution rehearsal with no submit:
    - real source
    - real Polymarket market resolution
@@ -437,6 +440,22 @@ Next engineering steps:
    - no `--live`
 3. Run one explicit `--live --i-understand-real-money` test only after the rehearsal produces a clean plan.
 4. Watch the first live order manually and stop after any unexpected response.
+
+Recommended dry-run handoff for the next supervised rehearsal:
+
+```bash
+python kou_polymarket_live_capture.py \
+  --session-id "$SESSION_ID" \
+  --validation-profile \
+  --assets xrp \
+  --shadow-candidate analysis/autoresearch_kou/candidates/xrp_only_ultra_safe_v1_near_strike_exec_guard.py \
+  --sniper-mode dry-run \
+  --sniper-order-size 1 \
+  --sniper-max-order-cost 1 \
+  --sniper-max-session-cost 4 \
+  --sniper-max-session-orders 4 \
+  --sniper-require-geoblock-clear
+```
 
 ## Points Still To Decide
 
@@ -452,7 +471,7 @@ Most of the research logic is clear. The remaining unclear points are execution 
   - market order submit is wired but not yet tested against a real tiny order
   - still need to inspect exact fill/status response shape from a real `FOK`/`FAK` attempt
 - Signal handoff:
-  - decide whether Kou writes signals to JSONL, local HTTP, or an in-process queue
+  - current implementation writes JSONL and can call the sniper in-process
   - keep one-order-per-bucket idempotency in the sniper
 - Order style:
   - likely `FOK` or `FAK`

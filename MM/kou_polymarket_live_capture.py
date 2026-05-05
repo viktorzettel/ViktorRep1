@@ -27,7 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -267,6 +267,37 @@ def parse_args() -> argparse.Namespace:
             "Optional candidate module path for read-only shadow execution logging. "
             "The module must expose score_grid_event(row). No real orders are submitted."
         ),
+    )
+    parser.add_argument(
+        "--sniper-mode",
+        choices=("off", "signal", "dry-run", "live"),
+        default="off",
+        help=(
+            "Optional handoff from approved shadow orders to the Polymarket sniper. "
+            "'signal' writes sniper_signals.jsonl only; 'dry-run' also builds sniper plans; "
+            "'live' can submit real orders only with --sniper-live-ack."
+        ),
+    )
+    parser.add_argument("--sniper-order-size", type=float, default=1.0, help="Sniper intended token size")
+    parser.add_argument("--sniper-max-order-cost", type=float, default=1.0, help="Sniper max pUSD cost per order")
+    parser.add_argument("--sniper-max-session-cost", type=float, default=4.0, help="Sniper max pUSD cost per session")
+    parser.add_argument("--sniper-max-session-orders", type=int, default=4, help="Sniper max orders per session")
+    parser.add_argument("--sniper-max-entry-price", type=float, default=0.98, help="Sniper hard max entry")
+    parser.add_argument("--sniper-max-source-age-s", type=float, default=3.0, help="Sniper max source age")
+    parser.add_argument("--sniper-max-model-age-s", type=float, default=3.0, help="Sniper max model age")
+    parser.add_argument("--sniper-min-visible-ask-size", type=float, default=1.0, help="Sniper minimum visible ask size")
+    parser.add_argument(
+        "--sniper-max-book-endpoint-delta",
+        type=float,
+        default=0.03,
+        help="Sniper max visible book ask minus endpoint buy price",
+    )
+    parser.add_argument("--sniper-order-type", choices=("FOK", "FAK"), default="FOK", help="Sniper live order type")
+    parser.add_argument("--sniper-live-ack", action="store_true", help="Required with --sniper-mode live; spends real pUSD")
+    parser.add_argument(
+        "--sniper-require-geoblock-clear",
+        action="store_true",
+        help="Require Polymarket geoblock endpoint clear before sniper dry-run/live plan",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     parser.add_argument(
@@ -528,6 +559,47 @@ def build_shadow_order(
             "pnl_per_share_if_loss": observed.get("pnl_per_share_if_loss"),
         },
         "candidate_row": candidate_row,
+    }
+
+
+def build_sniper_signal_from_shadow_order(order: dict[str, Any], *, ttl_s: float = 8.0) -> Optional[dict[str, Any]]:
+    source = order.get("source_grid_event") or {}
+    order_payload = order.get("order") or {}
+    candidate = order.get("candidate") or {}
+    decision = candidate.get("decision") or {}
+    candidate_row = order.get("candidate_row") or {}
+    side = str(order_payload.get("side") or "").lower()
+    symbol = str(source.get("symbol") or candidate_row.get("symbol") or "").lower()
+    entry_price = safe_float(order_payload.get("entry_price"), 6)
+    captured_at_ts = safe_float(source.get("captured_at_ts") or order.get("ts"), 3)
+    time_left_s = safe_float(source.get("time_left_s"), 3)
+    if side not in {"yes", "no"} or not symbol or entry_price is None or captured_at_ts is None:
+        return None
+
+    live_ttl_s = max(1.0, min(float(ttl_s), (time_left_s - 5.0) if time_left_s is not None else float(ttl_s)))
+    return {
+        "signal_id": order.get("shadow_order_id"),
+        "symbol": symbol,
+        "side": side,
+        "max_entry_price": entry_price,
+        "market_slug": source.get("market_slug") or candidate_row.get("market_slug"),
+        "bucket_end": source.get("bucket_end") or candidate_row.get("bucket_end"),
+        "reason": decision.get("reason"),
+        "expires_at": safe_float(captured_at_ts + live_ttl_s, 3),
+        "source_age_s": source.get("source_age_s") if source.get("source_age_s") is not None else candidate_row.get("source_age_s"),
+        "model_age_s": source.get("model_age_s") if source.get("model_age_s") is not None else candidate_row.get("model_age_s"),
+        "time_left_s": time_left_s,
+        "price": candidate_row.get("price"),
+        "strike": candidate_row.get("strike"),
+        "entry_price": entry_price,
+        "entry_price_source": order_payload.get("entry_price_source"),
+        "book_ask_price": order_payload.get("book_ask_price"),
+        "book_ask_size": order_payload.get("book_ask_size"),
+        "endpoint_buy_price": order_payload.get("endpoint_buy_price"),
+        "book_endpoint_delta": order_payload.get("book_endpoint_delta"),
+        "candidate_name": candidate.get("name"),
+        "captured_at_ts": captured_at_ts,
+        "captured_at_iso": source.get("captured_at_iso") or order.get("iso_utc"),
     }
 
 
@@ -1854,6 +1926,11 @@ class PolymarketQuoteCapture:
         self.shadow_candidate = load_shadow_candidate(getattr(args, "shadow_candidate", None))
         self.shadow_orders_path = self.session.output_dir / "shadow_orders.jsonl"
         self.shadow_settlements_path = self.session.output_dir / "shadow_order_settlements.jsonl"
+        self.sniper_mode = str(getattr(args, "sniper_mode", "off") or "off")
+        self.sniper_signals_path = self.session.output_dir / "sniper_signals.jsonl"
+        self.sniper_plans_path = self.session.output_dir / "sniper_plans.jsonl"
+        self.sniper_results_path = self.session.output_dir / "sniper_results.jsonl"
+        self.sniper_ledger_path = self.session.output_dir / "sniper_live_ledger.jsonl"
         self.bucket_outcomes_path = self.session.output_dir / "bucket_outcomes.jsonl"
         self.market_states: dict[str, AssetMarketState] = {}
         self.grid_states: dict[tuple[str, str, float], GridThresholdState] = {}
@@ -1913,6 +1990,18 @@ class PolymarketQuoteCapture:
                 "settlements_file": self.shadow_settlements_path.name if self.shadow_candidate is not None else None,
                 "de_dupe": "one_shadow_order_per_symbol_bucket",
             },
+            "sniper_handoff": {
+                "mode": self.sniper_mode,
+                "signals_file": self.sniper_signals_path.name if self.sniper_mode != "off" else None,
+                "plans_file": self.sniper_plans_path.name if self.sniper_mode in {"dry-run", "live"} else None,
+                "results_file": self.sniper_results_path.name if self.sniper_mode == "live" else None,
+                "ledger_file": self.sniper_ledger_path.name if self.sniper_mode in {"dry-run", "live"} else None,
+                "order_size": getattr(self.args, "sniper_order_size", None),
+                "max_order_cost": getattr(self.args, "sniper_max_order_cost", None),
+                "max_session_cost": getattr(self.args, "sniper_max_session_cost", None),
+                "max_session_orders": getattr(self.args, "sniper_max_session_orders", None),
+                "live_ack": bool(getattr(self.args, "sniper_live_ack", False)),
+            },
             "cwd": str(Path.cwd()),
             "git_revision": git_revision(Path.cwd()),
             "python": sys.version,
@@ -1920,6 +2009,13 @@ class PolymarketQuoteCapture:
         if self.shadow_candidate is not None:
             payload["output_files"]["shadow_orders"] = self.shadow_orders_path.name
             payload["output_files"]["shadow_settlements"] = self.shadow_settlements_path.name
+        if self.sniper_mode != "off":
+            payload["output_files"]["sniper_signals"] = self.sniper_signals_path.name
+        if self.sniper_mode in {"dry-run", "live"}:
+            payload["output_files"]["sniper_plans"] = self.sniper_plans_path.name
+            payload["output_files"]["sniper_ledger"] = self.sniper_ledger_path.name
+        if self.sniper_mode == "live":
+            payload["output_files"]["sniper_results"] = self.sniper_results_path.name
         if stopped_at_ts is not None:
             payload["stopped_at_ts"] = safe_float(stopped_at_ts, 3)
             payload["stopped_at_iso"] = utc_iso(stopped_at_ts)
@@ -2197,7 +2293,115 @@ class PolymarketQuoteCapture:
 
         return triggered_events
 
-    def maybe_emit_shadow_order(self, grid_event: dict[str, Any], shadow_orders_handle) -> None:
+    def maybe_emit_sniper_handoff(
+        self,
+        *,
+        order: dict[str, Any],
+        sniper_signals_handle,
+        sniper_plans_handle,
+        sniper_results_handle,
+        events_handle,
+    ) -> None:
+        if self.sniper_mode == "off":
+            return
+
+        sniper_signal = build_sniper_signal_from_shadow_order(order)
+        if sniper_signal is None:
+            self.emit_event(events_handle, "sniper_signal_build_failed", shadow_order_id=order.get("shadow_order_id"))
+            return
+
+        append_jsonl(
+            sniper_signals_handle,
+            {
+                "event_type": "sniper_signal",
+                "session_id": self.session.session_id,
+                "ts": safe_float(time.time(), 3),
+                "iso_utc": utc_iso(time.time()),
+                "shadow_order_id": order.get("shadow_order_id"),
+                "signal": sniper_signal,
+            },
+        )
+
+        if self.sniper_mode == "signal":
+            return
+
+        try:
+            import polymarket_token_sniper as sniper
+
+            signal_obj = sniper.KouBuySignal.from_mapping(sniper_signal)
+            limits = sniper.SniperLimits(
+                order_size=max(0.0, float(getattr(self.args, "sniper_order_size", 1.0))),
+                max_order_cost=max(0.0, float(getattr(self.args, "sniper_max_order_cost", 1.0))),
+                max_session_cost=max(0.0, float(getattr(self.args, "sniper_max_session_cost", 4.0))),
+                max_session_orders=max(0, int(getattr(self.args, "sniper_max_session_orders", 4))),
+                max_entry_price=max(0.0, min(1.0, float(getattr(self.args, "sniper_max_entry_price", 0.98)))),
+                max_source_age_s=max(0.0, float(getattr(self.args, "sniper_max_source_age_s", 3.0))),
+                max_model_age_s=max(0.0, float(getattr(self.args, "sniper_max_model_age_s", 3.0))),
+                max_book_endpoint_delta=max(0.0, float(getattr(self.args, "sniper_max_book_endpoint_delta", 0.03))),
+                min_visible_ask_size=max(0.0, float(getattr(self.args, "sniper_min_visible_ask_size", 1.0))),
+            )
+            plan = sniper.build_dry_run_plan(
+                signal_obj,
+                limits,
+                env_file=self.args.env_file,
+                ledger_path=str(self.sniper_ledger_path),
+                require_geoblock_clear=bool(
+                    getattr(self.args, "sniper_require_geoblock_clear", False) or self.sniper_mode == "live"
+                ),
+            )
+            append_jsonl(
+                sniper_plans_handle,
+                {
+                    "event_type": "sniper_plan",
+                    "session_id": self.session.session_id,
+                    "ts": safe_float(time.time(), 3),
+                    "iso_utc": utc_iso(time.time()),
+                    "shadow_order_id": order.get("shadow_order_id"),
+                    "plan": asdict(plan),
+                },
+            )
+            if self.sniper_mode != "live":
+                return
+
+            result = sniper.submit_live_order(
+                plan,
+                env_file=self.args.env_file,
+                ledger_path=str(self.sniper_ledger_path),
+                order_type=str(getattr(self.args, "sniper_order_type", "FOK") or "FOK"),
+                live_ack=bool(getattr(self.args, "sniper_live_ack", False)),
+            )
+            append_jsonl(
+                sniper_results_handle,
+                {
+                    "event_type": "sniper_live_result",
+                    "session_id": self.session.session_id,
+                    "ts": safe_float(time.time(), 3),
+                    "iso_utc": utc_iso(time.time()),
+                    "shadow_order_id": order.get("shadow_order_id"),
+                    "result": asdict(result),
+                },
+            )
+        except Exception as exc:
+            logging.exception("Sniper handoff failed")
+            self.emit_event(
+                events_handle,
+                "sniper_handoff_error",
+                shadow_order_id=order.get("shadow_order_id"),
+                sniper_mode=self.sniper_mode,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            if self.sniper_mode == "live":
+                self._running = False
+
+    def maybe_emit_shadow_order(
+        self,
+        grid_event: dict[str, Any],
+        shadow_orders_handle,
+        sniper_signals_handle=None,
+        sniper_plans_handle=None,
+        sniper_results_handle=None,
+        events_handle=None,
+    ) -> None:
         if self.shadow_candidate is None or shadow_orders_handle is None:
             return
 
@@ -2236,6 +2440,14 @@ class PolymarketQuoteCapture:
         append_jsonl(shadow_orders_handle, order)
         self.shadow_ordered_buckets.add(ordered_key)
         self.shadow_pending_orders[str(order["shadow_order_id"])] = order
+        if events_handle is not None and sniper_signals_handle is not None:
+            self.maybe_emit_sniper_handoff(
+                order=order,
+                sniper_signals_handle=sniper_signals_handle,
+                sniper_plans_handle=sniper_plans_handle,
+                sniper_results_handle=sniper_results_handle,
+                events_handle=events_handle,
+            )
 
     def settle_shadow_orders(self, shadow_settlements_handle) -> None:
         if self.shadow_candidate is None or shadow_settlements_handle is None or not self.shadow_pending_orders:
@@ -2331,6 +2543,9 @@ class PolymarketQuoteCapture:
             self.grid_signals_path.open("a", encoding="utf-8") as grid_handle,
             self.shadow_orders_path.open("a", encoding="utf-8") if self.shadow_candidate is not None else open(os.devnull, "w", encoding="utf-8") as shadow_orders_handle,
             self.shadow_settlements_path.open("a", encoding="utf-8") if self.shadow_candidate is not None else open(os.devnull, "w", encoding="utf-8") as shadow_settlements_handle,
+            self.sniper_signals_path.open("a", encoding="utf-8") if self.sniper_mode != "off" else open(os.devnull, "w", encoding="utf-8") as sniper_signals_handle,
+            self.sniper_plans_path.open("a", encoding="utf-8") if self.sniper_mode in {"dry-run", "live"} else open(os.devnull, "w", encoding="utf-8") as sniper_plans_handle,
+            self.sniper_results_path.open("a", encoding="utf-8") if self.sniper_mode == "live" else open(os.devnull, "w", encoding="utf-8") as sniper_results_handle,
         ):
             self.emit_event(
                 events_handle,
@@ -2339,6 +2554,7 @@ class PolymarketQuoteCapture:
                 output_dir=str(self.session.output_dir),
                 shadow_execution_enabled=self.shadow_candidate is not None,
                 shadow_candidate_name=None if self.shadow_candidate is None else self.shadow_candidate["name"],
+                sniper_mode=self.sniper_mode,
             )
 
             while self._running:
@@ -2407,7 +2623,14 @@ class PolymarketQuoteCapture:
                         token_prices=record["token_prices"],
                     ):
                         append_jsonl(grid_handle, grid_event)
-                        self.maybe_emit_shadow_order(grid_event, shadow_orders_handle)
+                        self.maybe_emit_shadow_order(
+                            grid_event,
+                            shadow_orders_handle,
+                            sniper_signals_handle,
+                            sniper_plans_handle,
+                            sniper_results_handle,
+                            events_handle,
+                        )
 
                 self.settle_shadow_orders(shadow_settlements_handle)
 

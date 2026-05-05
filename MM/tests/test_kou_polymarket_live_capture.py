@@ -588,6 +588,16 @@ class TestShadowExecution(unittest.TestCase):
         self.assertEqual(order["order"]["side"], "no")
         self.assertEqual(order["order"]["requested_size_cost"], 4.5)
 
+        sniper_signal = capture.build_sniper_signal_from_shadow_order(order)
+        self.assertIsNotNone(sniper_signal)
+        assert sniper_signal is not None
+        self.assertEqual(sniper_signal["symbol"], "xrpusdt")
+        self.assertEqual(sniper_signal["side"], "no")
+        self.assertEqual(sniper_signal["max_entry_price"], 0.9)
+        self.assertEqual(sniper_signal["market_slug"], "xrp-updown-5m-1776604500")
+        self.assertEqual(sniper_signal["bucket_end"], 1776604800.0)
+        self.assertLessEqual(sniper_signal["expires_at"], 1776604795.0)
+
         settlement = capture.build_shadow_settlement(
             order,
             {
