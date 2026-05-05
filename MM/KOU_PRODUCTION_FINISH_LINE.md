@@ -410,8 +410,14 @@ Current implementation status:
   - max session order count
   - max session cost
   - optional Polymarket geoblock endpoint preflight
-- Live order submission is still intentionally locked behind `submit_live_order()` and raises `NotImplementedError`.
-- This is deliberate: the next coding step is CLOB V2 order construction/submission, not another strategy change.
+- CLOB V2 market-order submission is now wired through `py-clob-client-v2`, but only behind explicit live arming:
+  - `--live`
+  - `--i-understand-real-money`
+  - `--session-ledger ...`
+- The SDK was installed locally as `py-clob-client-v2==1.0.0`.
+- Live submission writes a `live_order_plan` ledger row before submit and a `live_order_submitted` row after the response.
+- Ambiguous/failed/partial-looking responses raise a stop-required error and must end the session until manually reviewed.
+- The private key pasted in chat should be treated as compromised; use a fresh tiny wallet or rotate/move funds before any live run.
 
 Execution assumptions:
 
@@ -422,13 +428,15 @@ Execution assumptions:
 
 Next engineering steps:
 
-1. Confirm the installed/usable CLOB V2 Python SDK and exact method names for marketable buy orders.
-2. Extend `polymarket_token_sniper.py` from dry-run plan to live submit behind an explicit `--live --i-understand-real-money` style arm.
-3. Write every planned/submitted order to a session ledger before and after submission.
-4. Add post-submit verification: filled amount, average fill, order ID, status, and any remaining open order.
-5. Add an emergency stop rule: after any ambiguous response, stop the session.
-6. Run one live execution rehearsal with no submit.
-7. Then run one supervised `4 pUSD` maximum session.
+1. Build or wire a small signal handoff so the exec-guard shadow candidate can emit one live-ready JSON signal to the sniper.
+2. Run one live execution rehearsal with no submit:
+   - real source
+   - real Polymarket market resolution
+   - real CLOB quote/book checks
+   - real session ledger
+   - no `--live`
+3. Run one explicit `--live --i-understand-real-money` test only after the rehearsal produces a clean plan.
+4. Watch the first live order manually and stop after any unexpected response.
 
 ## Points Still To Decide
 
@@ -440,9 +448,9 @@ Most of the research logic is clear. The remaining unclear points are execution 
   - direct Python `poly-chainlink` currently proves initial snapshot access, not continuous 1s updates
   - final bot still needs either a fixed no-browser RTDS adapter or a supervised headless browser adapter, plus reconnect metrics and stale-source alerts
 - Live execution SDK:
-  - production should use CLOB V2 / official V2 SDK if possible
-  - current foundation does not submit orders
-  - confirm exact Python package and order method before coding live submit
+  - production uses CLOB V2 / official `py-clob-client-v2`
+  - market order submit is wired but not yet tested against a real tiny order
+  - still need to inspect exact fill/status response shape from a real `FOK`/`FAK` attempt
 - Signal handoff:
   - decide whether Kou writes signals to JSONL, local HTTP, or an in-process queue
   - keep one-order-per-bucket idempotency in the sniper
@@ -467,18 +475,14 @@ Most of the research logic is clear. The remaining unclear points are execution 
 
 ## Real-Money Blockers
 
-Do not build live execution until these are solved:
+Do not run the supervised live session until these are solved:
 
-- Polymarket CLOB V2 order signing.
-- pUSD collateral and wallet approvals.
-- Geoblock eligibility from the real operating environment.
+- Fresh/rotated tiny wallet or explicit acceptance that the pasted private key is compromised.
+- pUSD collateral and wallet approvals confirmed in the exact trading wallet.
+- Geoblock endpoint clear from the real operating environment.
 - Tiny-size execution test with confirmed fill behavior.
-- Final XRP source decision.
-- At least one more clean forward shadow session with the validated `browser-poly-chainlink` source, because the first clean exec-guard session is promising but still only `4` trades.
-- Direct `poly-chainlink` live-update fix or a supervised headless browser source adapter.
-- Explicit decision on whether the exec-guard candidate is too selective for live use.
-- Secrets handling and emergency kill-switch design.
-- Fillability guard: block unknown-size quotes and use executable book-aware entry checks.
-- Stale-source guard: block live orders when Poly/Chainlink age exceeds the chosen limit.
+- Signal handoff from the exec-guard candidate into `polymarket_token_sniper.py`.
+- Dry-run execution rehearsal with real CLOB V2 quote checks and session ledger.
+- Manual operator present for the full tiny session.
 
 The read-only/shadow stack is research-grade. The real-money bot is a separate integration step.

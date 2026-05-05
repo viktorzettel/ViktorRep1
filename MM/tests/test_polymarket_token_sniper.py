@@ -25,6 +25,73 @@ def make_signal(**overrides):
     return sniper.KouBuySignal.from_mapping(payload)
 
 
+def make_plan(**overrides):
+    signal = overrides.pop("signal", make_signal())
+    quote = overrides.pop(
+        "token_quote",
+        sniper.TokenQuote(
+            token_id="123",
+            side="yes",
+            buy_price=0.89,
+            book_ask_price=0.9,
+            book_ask_size=10.0,
+            book_endpoint_delta=0.01,
+            entry_price=0.9,
+            entry_price_source="book_ask",
+        ),
+    )
+    payload = {
+        "allow_submit": True,
+        "mode": "dry_run_no_order",
+        "reason": "dry_run_ready_live_submit_disabled",
+        "signal": signal,
+        "market_slug": signal.market_slug,
+        "token_quote": quote,
+        "requested_size": 1.0,
+        "estimated_cost": 0.9,
+        "checks": {},
+    }
+    payload.update(overrides)
+    return sniper.ExecutionPlan(**payload)
+
+
+class FakeOrderType:
+    FOK = "FOK"
+    FAK = "FAK"
+
+
+class FakeSide:
+    BUY = "BUY"
+
+
+class FakeMarketOrderArgs:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+class FakeOptions:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+class FakeClient:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def create_and_post_market_order(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.response
+
+
+FAKE_SDK = {
+    "MarketOrderArgs": FakeMarketOrderArgs,
+    "OrderType": FakeOrderType,
+    "PartialCreateOrderOptions": FakeOptions,
+    "Side": FakeSide,
+}
+
+
 class PolymarketTokenSniperTests(unittest.TestCase):
     def test_validate_signal_requires_model_age(self):
         signal = make_signal(model_age_s=None)
@@ -108,6 +175,55 @@ class PolymarketTokenSniperTests(unittest.TestCase):
             )
         self.assertFalse(plan.allow_submit)
         self.assertEqual(plan.reason, "max_session_orders_reached")
+
+    def test_live_submit_requires_explicit_ack(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp) / "live_orders.jsonl"
+            with self.assertRaisesRegex(RuntimeError, "live_ack_required"):
+                sniper.submit_live_order(
+                    make_plan(),
+                    env_file=".env",
+                    ledger_path=str(ledger),
+                    client=FakeClient({"success": True}),
+                    sdk=FAKE_SDK,
+                )
+
+    def test_live_submit_writes_ledger_and_calls_market_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp) / "live_orders.jsonl"
+            client = FakeClient({"success": True, "orderID": "abc"})
+            result = sniper.submit_live_order(
+                make_plan(),
+                env_file=".env",
+                ledger_path=str(ledger),
+                live_ack=True,
+                client=client,
+                sdk=FAKE_SDK,
+            )
+            rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(result.submitted)
+        self.assertEqual(result.status, "submitted_final_or_accepted")
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["event_type"], "live_order_plan")
+        self.assertEqual(rows[1]["event_type"], "live_order_submitted")
+        self.assertTrue(rows[1]["real_order_submitted"])
+
+    def test_live_submit_ambiguous_response_stops_after_ledger_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp) / "live_orders.jsonl"
+            with self.assertRaisesRegex(RuntimeError, "ambiguous"):
+                sniper.submit_live_order(
+                    make_plan(),
+                    env_file=".env",
+                    ledger_path=str(ledger),
+                    live_ack=True,
+                    client=FakeClient({"status": "open"}),
+                    sdk=FAKE_SDK,
+                )
+            rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(rows[-1]["event_type"], "live_order_submitted")
+        self.assertTrue(rows[-1]["stop_required"])
 
 
 if __name__ == "__main__":

@@ -4,6 +4,9 @@ __pycache__/
 .Rhistory
 .kou_current_session
 *.sqlite3
+.env
+.env.*
+!.env.example
 
 # Raw/high-volume research artifacts. Compact forensic reports are staged explicitly.
 data/live_capture/20*T*Z/

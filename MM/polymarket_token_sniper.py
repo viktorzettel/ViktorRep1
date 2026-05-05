@@ -103,6 +103,18 @@ class ExecutionPlan:
 
 
 @dataclass(frozen=True)
+class LiveOrderResult:
+    submitted: bool
+    status: str
+    reason: str
+    order_type: str
+    token_id: Optional[str]
+    amount: Optional[float]
+    response: Optional[dict[str, Any]]
+    ledger_path: Optional[str]
+
+
+@dataclass(frozen=True)
 class GeoblockStatus:
     checked: bool
     blocked: Optional[bool]
@@ -160,6 +172,26 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
         if isinstance(item, dict):
             rows.append(item)
     return rows
+
+
+def append_ledger_event(path_raw: str, event: dict[str, Any]) -> None:
+    path = Path(path_raw)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, sort_keys=True) + "\n")
+
+
+def _jsonable_response(response: Any) -> dict[str, Any]:
+    if response is None:
+        return {}
+    if isinstance(response, dict):
+        return response
+    if hasattr(response, "model_dump"):
+        dumped = response.model_dump()
+        return dumped if isinstance(dumped, dict) else {"raw": str(dumped)}
+    if hasattr(response, "__dict__"):
+        return dict(response.__dict__)
+    return {"raw": str(response)}
 
 
 def check_geoblock(timeout_s: float = 5.0) -> GeoblockStatus:
@@ -334,6 +366,61 @@ def fetch_side_quote(client: Any, market: pm.MarketCandidate, side: str) -> Toke
     )
 
 
+def live_submit_response_is_final(response: dict[str, Any]) -> bool:
+    if not response:
+        return False
+    status_text = " ".join(str(value).lower() for value in response.values() if value is not None)
+    if any(bad in status_text for bad in ("error", "failed", "rejected", "partial", "cancelled", "canceled")):
+        return False
+    if any(good in status_text for good in ("filled", "success", "matched")):
+        return True
+    return bool(response.get("success") is True or response.get("orderID") or response.get("orderId") or response.get("id"))
+
+
+def _load_v2_sdk() -> dict[str, Any]:
+    try:
+        from py_clob_client_v2 import ApiCreds, ClobClient, MarketOrderArgs, OrderType, PartialCreateOrderOptions, Side
+    except ImportError as exc:
+        raise RuntimeError(
+            "py-clob-client-v2 is not installed. Install it with: python3 -m pip install py-clob-client-v2"
+        ) from exc
+    return {
+        "ApiCreds": ApiCreds,
+        "ClobClient": ClobClient,
+        "MarketOrderArgs": MarketOrderArgs,
+        "OrderType": OrderType,
+        "PartialCreateOrderOptions": PartialCreateOrderOptions,
+        "Side": Side,
+    }
+
+
+def login_v2_clob_client(settings: pm.PolyEnvSettings) -> Any:
+    sdk = _load_v2_sdk()
+    ApiCreds = sdk["ApiCreds"]
+    ClobClient = sdk["ClobClient"]
+    creds = None
+    if settings.has_saved_credentials():
+        creds = ApiCreds(
+            api_key=settings.poly_api_key or "",
+            api_secret=settings.poly_api_secret or "",
+            api_passphrase=settings.poly_api_passphrase or "",
+        )
+    kwargs: dict[str, Any] = {
+        "host": settings.poly_host,
+        "chain_id": settings.poly_chain_id,
+        "key": settings.poly_private_key,
+        "creds": creds,
+    }
+    if settings.poly_proxy_address:
+        kwargs["signature_type"] = 2
+        kwargs["funder"] = settings.poly_proxy_address
+    client = ClobClient(**kwargs)
+    if creds is None:
+        derived = client.create_or_derive_api_key()
+        client = ClobClient(**{**kwargs, "creds": derived})
+    return client
+
+
 def build_dry_run_plan(
     signal: KouBuySignal,
     limits: SniperLimits,
@@ -435,11 +522,96 @@ def build_dry_run_plan(
     )
 
 
-def submit_live_order(_plan: ExecutionPlan) -> None:
-    raise NotImplementedError(
-        "Live CLOB V2 order submission is intentionally disabled in the sniper foundation. "
-        "Implement only after pUSD, geoblock, secrets, and tiny-wallet tests are ready."
+def submit_live_order(
+    plan: ExecutionPlan,
+    *,
+    env_file: str,
+    ledger_path: str,
+    order_type: str = "FOK",
+    live_ack: bool = False,
+    client: Any = None,
+    sdk: Optional[dict[str, Any]] = None,
+) -> LiveOrderResult:
+    if not live_ack:
+        raise RuntimeError("live_ack_required")
+    if not plan.allow_submit:
+        raise RuntimeError(f"plan_not_submittable:{plan.reason}")
+    if plan.token_quote is None or not plan.token_quote.token_id:
+        raise RuntimeError("missing_token_quote")
+    if plan.estimated_cost is None or plan.estimated_cost <= 0.0:
+        raise RuntimeError("missing_estimated_cost")
+    if not ledger_path:
+        raise RuntimeError("session_ledger_required_for_live")
+
+    event_base = {
+        "event_type": "live_order_plan",
+        "iso_utc": pm.utc_iso(time.time()),
+        "ts": time.time(),
+        "market_slug": plan.market_slug,
+        "bucket_end": plan.signal.bucket_end,
+        "side": plan.signal.side,
+        "token_id": plan.token_quote.token_id,
+        "estimated_cost": plan.estimated_cost,
+        "requested_size": plan.requested_size,
+        "entry_price": plan.token_quote.entry_price,
+        "source_age_s": plan.signal.source_age_s,
+        "model_age_s": plan.signal.model_age_s,
+        "real_order_submitted": False,
+    }
+    append_ledger_event(ledger_path, event_base)
+
+    sdk = sdk or _load_v2_sdk()
+    MarketOrderArgs = sdk["MarketOrderArgs"]
+    OrderType = sdk["OrderType"]
+    PartialCreateOrderOptions = sdk["PartialCreateOrderOptions"]
+    Side = sdk["Side"]
+
+    order_type_value = getattr(OrderType, order_type.upper())
+    side_buy = getattr(Side, "BUY")
+    if client is None:
+        settings = pm.load_poly_settings(env_file)
+        client = login_v2_clob_client(settings)
+
+    response = client.create_and_post_market_order(
+        order_args=MarketOrderArgs(
+            token_id=plan.token_quote.token_id,
+            amount=plan.estimated_cost,
+            side=side_buy,
+            order_type=order_type_value,
+        ),
+        options=PartialCreateOrderOptions(tick_size="0.01"),
+        order_type=order_type_value,
     )
+    response_payload = _jsonable_response(response)
+    final = live_submit_response_is_final(response_payload)
+    result = LiveOrderResult(
+        submitted=True,
+        status="submitted_final_or_accepted" if final else "submitted_ambiguous_stop_required",
+        reason="live_order_submitted" if final else "live_order_response_ambiguous",
+        order_type=order_type.upper(),
+        token_id=plan.token_quote.token_id,
+        amount=plan.estimated_cost,
+        response=response_payload,
+        ledger_path=ledger_path,
+    )
+    append_ledger_event(
+        ledger_path,
+        {
+            **event_base,
+            "event_type": "live_order_submitted",
+            "iso_utc": pm.utc_iso(time.time()),
+            "ts": time.time(),
+            "real_order_submitted": True,
+            "submit_status": result.status,
+            "submit_reason": result.reason,
+            "order_type": result.order_type,
+            "response": response_payload,
+            "stop_required": not final,
+        },
+    )
+    if not final:
+        raise RuntimeError("live_order_response_ambiguous_stop_required")
+    return result
 
 
 def parse_args() -> argparse.Namespace:
@@ -457,7 +629,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-visible-ask-size", type=float, default=1.0, help="Minimum visible ask size")
     parser.add_argument("--session-ledger", help="JSONL ledger used for one-order-per-bucket and session spend caps")
     parser.add_argument("--require-geoblock-clear", action="store_true", help="Require Polymarket geoblock endpoint to return blocked=false before planning")
-    parser.add_argument("--live", action="store_true", help="Attempt live submit; currently disabled by design")
+    parser.add_argument("--order-type", choices=("FOK", "FAK"), default="FOK", help="CLOB V2 market order type for live submit")
+    parser.add_argument("--i-understand-real-money", action="store_true", help="Required with --live; confirms this can spend real pUSD")
+    parser.add_argument("--live", action="store_true", help="Attempt live submit with CLOB V2 after all preflight checks")
     return parser.parse_args()
 
 
@@ -484,7 +658,14 @@ def main() -> int:
     )
     print(json.dumps(asdict(plan), indent=2, sort_keys=True))
     if args.live:
-        submit_live_order(plan)
+        result = submit_live_order(
+            plan,
+            env_file=args.env_file,
+            ledger_path=args.session_ledger or "",
+            order_type=args.order_type,
+            live_ack=bool(args.i_understand_real_money),
+        )
+        print(json.dumps(asdict(result), indent=2, sort_keys=True))
     return 0 if plan.allow_submit else 2
 
 
