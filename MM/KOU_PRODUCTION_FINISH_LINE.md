@@ -317,6 +317,52 @@ Important implementation note:
 - The real execution module should use the official V2 SDK if possible, because it handles signing and order submission details more safely than raw manual signing.
 - Collateral and approvals must be handled for pUSD before any order placement test.
 
+## Latest Forward Shadow Result
+
+Fresh 4h browser Poly/Chainlink exec-guard session:
+
+- Session: `20260504T201524Z`
+- Runtime: full `4h`
+- Source: `browser-poly-chainlink` for display and model
+- Candidate: `xrp_only_ultra_safe_v1_near_strike_exec_guard`
+- Completed XRP markets: `48`
+- Kou snapshots: `7,489`
+- Polymarket quote rows: `15,830`
+- Grid signal rows: `312`
+- Active shadow orders: `4`
+- Settled shadow orders: `4`
+- Result: `4/4` wins
+- Average executable entry: `0.8675`
+- Paper cost at 5-share size: `17.35`
+- Paper PnL: `+2.65`
+- Paper ROI: `+15.27%`
+
+Source-health finding:
+
+- Median source age: `0.8s`
+- p95 source age: `1.2s`
+- Max source age: `4.0s`
+- Only `3/7,489` snapshots were older than `3s`
+- No long stale-source periods appeared in this run.
+
+Same-session replay comparison:
+
+| Candidate | Trades | Wins/losses | Average entry | Paper ROI |
+| --- | ---: | ---: | ---: | ---: |
+| `xrp_only_cap98_required_context_v2` | `14` | `13/1` | `0.9229` | `+0.62%` |
+| `xrp_only_ultra_safe_v1` | `12` | `11/1` | `0.9325` | `-1.70%` |
+| `xrp_only_ultra_safe_v1_near_strike_exec_guard` | `4` | `4/0` | `0.8675` | `+15.27%` |
+
+Interpretation:
+
+- This is the cleanest forward-shadow result so far for the exec-guard candidate.
+- The improved browser Poly/Chainlink source looked materially healthier than the previous stale-source run.
+- The v2 and plain ultra-safe candidates both replayed one loss from this same session.
+- That loss was a `NO` entry around `0.98/0.99` that settled `YES` by only `+1.436 bps`, which is exactly the razor-close expiry class we wanted to avoid.
+- The exec guard blocked that loss through executable quote/entry discipline.
+- Market alignment check found `0` slug/bucket mismatches across grid rows and shadow orders.
+- Trade frequency is low: `4` accepted trades in `4h`, but the accepted trades had full visible book size and fresh source age.
+
 ## Points Still To Decide
 
 Most of the research logic is clear. The remaining unclear points are execution and operations, not the Kou model itself:
@@ -361,9 +407,9 @@ Do not build live execution until these are solved:
 - Geoblock eligibility from the real operating environment.
 - Tiny-size execution test with confirmed fill behavior.
 - Final XRP source decision.
-- One clean forward shadow session with the validated `browser-poly-chainlink` source.
+- At least one more clean forward shadow session with the validated `browser-poly-chainlink` source, because the first clean exec-guard session is promising but still only `4` trades.
 - Direct `poly-chainlink` live-update fix or a supervised headless browser source adapter.
-- One clean forward shadow session with the exec-guard candidate, or an explicit decision that it is too selective.
+- Explicit decision on whether the exec-guard candidate is too selective for live use.
 - Secrets handling and emergency kill-switch design.
 - Fillability guard: block unknown-size quotes and use executable book-aware entry checks.
 - Stale-source guard: block live orders when Poly/Chainlink age exceeds the chosen limit.
