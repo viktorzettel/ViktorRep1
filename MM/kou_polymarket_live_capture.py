@@ -2380,6 +2380,13 @@ class PolymarketQuoteCapture:
                         },
                     )
             if self.sniper_mode != "live":
+                if self.sniper_mode == "dry-run" and plan.allow_submit:
+                    sniper.record_dry_run_order_plan(
+                        plan,
+                        ledger_path=str(self.sniper_ledger_path),
+                        session_id=self.session.session_id,
+                        shadow_order_id=order.get("shadow_order_id"),
+                    )
                 return
 
             result = sniper.submit_live_order(

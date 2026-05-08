@@ -238,27 +238,33 @@ def session_risk_state(ledger_path: Optional[str], signal: KouBuySignal) -> Sess
     path = Path(ledger_path)
     submitted_order_count = 0
     submitted_cost = 0.0
-    planned_order_count = 0
-    planned_cost = 0.0
+    planned_orders: dict[tuple[Any, Any, Any], float] = {}
     bucket_already_used = False
-    for row in _read_jsonl(path):
+    for idx, row in enumerate(_read_jsonl(path)):
+        event_type = row.get("event_type")
         if bool(row.get("real_order_submitted")):
             submitted_order_count += 1
             submitted_cost += _optional_float(row.get("estimated_cost")) or 0.0
-        if row.get("event_type") in {"live_order_plan", "live_order_submitted"}:
-            planned_order_count += 1
-            planned_cost += _optional_float(row.get("estimated_cost")) or 0.0
         row_bucket = _optional_float(row.get("bucket_end"))
         row_slug = _optional_str(row.get("market_slug"))
+        row_side = _optional_str(row.get("side"))
+        if event_type in {"dry_run_order_plan", "live_order_plan", "live_order_submitted"}:
+            key = (
+                round(row_bucket, 3) if row_bucket is not None else f"row:{idx}",
+                row_slug or f"row:{idx}",
+                row_side or f"row:{idx}",
+            )
+            planned_orders[key] = max(planned_orders.get(key, 0.0), _optional_float(row.get("estimated_cost")) or 0.0)
         if signal.bucket_end is not None and row_bucket is not None and abs(signal.bucket_end - row_bucket) <= 0.01:
             bucket_already_used = True
         if signal.market_slug and row_slug == signal.market_slug:
             bucket_already_used = True
+    planned_cost = sum(planned_orders.values())
     return SessionRiskState(
         ledger_path=str(path),
         submitted_order_count=submitted_order_count,
         submitted_cost=pm.safe_float(submitted_cost, 6) or 0.0,
-        planned_order_count=planned_order_count,
+        planned_order_count=len(planned_orders),
         planned_cost=pm.safe_float(planned_cost, 6) or 0.0,
         bucket_already_used=bucket_already_used,
     )
@@ -453,9 +459,13 @@ def build_dry_run_plan(
     checks["session_risk"] = asdict(risk_state)
     if risk_state.bucket_already_used:
         return ExecutionPlan(False, "dry_run_no_order", "bucket_already_used_in_session", signal, None, None, limits.order_size, None, checks)
-    if risk_state.submitted_order_count >= limits.max_session_orders:
+    effective_order_count = max(risk_state.submitted_order_count, risk_state.planned_order_count)
+    effective_cost = max(risk_state.submitted_cost, risk_state.planned_cost)
+    checks["session_risk"]["effective_order_count"] = effective_order_count
+    checks["session_risk"]["effective_cost"] = pm.safe_float(effective_cost, 6)
+    if effective_order_count >= limits.max_session_orders:
         return ExecutionPlan(False, "dry_run_no_order", "max_session_orders_reached", signal, None, None, limits.order_size, None, checks)
-    if risk_state.submitted_cost >= limits.max_session_cost:
+    if effective_cost >= limits.max_session_cost:
         return ExecutionPlan(False, "dry_run_no_order", "max_session_cost_reached", signal, None, None, limits.order_size, None, checks)
 
     if require_geoblock_clear:
@@ -494,8 +504,8 @@ def build_dry_run_plan(
         return ExecutionPlan(False, "dry_run_no_order", "visible_ask_too_small", signal, market.slug, quote, limits.order_size, None, checks)
     if quote.book_ask_size < limits.order_size:
         return ExecutionPlan(False, "dry_run_no_order", "visible_ask_below_order_size", signal, market.slug, quote, limits.order_size, None, checks)
-    if quote.book_endpoint_delta is not None and quote.book_endpoint_delta > limits.max_book_endpoint_delta:
-        return ExecutionPlan(False, "dry_run_no_order", "book_endpoint_delta_too_large", signal, market.slug, quote, limits.order_size, None, checks)
+    checks["book_endpoint_delta"] = quote.book_endpoint_delta
+    checks["book_endpoint_delta_limit_diagnostic"] = limits.max_book_endpoint_delta
 
     estimated_cost = limits.order_size * quote.entry_price
     if estimated_cost > limits.max_order_cost:
@@ -510,8 +520,8 @@ def build_dry_run_plan(
             pm.safe_float(estimated_cost, 6),
             checks,
         )
-    if risk_state.submitted_cost + estimated_cost > limits.max_session_cost:
-        checks["session_risk"]["projected_submitted_cost"] = pm.safe_float(risk_state.submitted_cost + estimated_cost, 6)
+    if effective_cost + estimated_cost > limits.max_session_cost:
+        checks["session_risk"]["projected_effective_cost"] = pm.safe_float(effective_cost + estimated_cost, 6)
         return ExecutionPlan(
             False,
             "dry_run_no_order",
@@ -535,6 +545,41 @@ def build_dry_run_plan(
         pm.safe_float(estimated_cost, 6),
         checks,
     )
+
+
+def record_dry_run_order_plan(
+    plan: ExecutionPlan,
+    *,
+    ledger_path: str,
+    session_id: Optional[str] = None,
+    shadow_order_id: Optional[str] = None,
+) -> None:
+    if not plan.allow_submit:
+        return
+    if plan.estimated_cost is None or plan.estimated_cost <= 0.0:
+        return
+    if plan.token_quote is None:
+        return
+    event = {
+        "event_type": "dry_run_order_plan",
+        "session_id": session_id,
+        "shadow_order_id": shadow_order_id,
+        "iso_utc": pm.utc_iso(time.time()),
+        "ts": time.time(),
+        "market_slug": plan.market_slug,
+        "bucket_end": plan.signal.bucket_end,
+        "side": plan.signal.side,
+        "token_id": plan.token_quote.token_id,
+        "estimated_cost": plan.estimated_cost,
+        "requested_size": plan.requested_size,
+        "entry_price": plan.token_quote.entry_price,
+        "source_age_s": plan.signal.source_age_s,
+        "model_age_s": plan.signal.model_age_s,
+        "real_order_submitted": False,
+        "counts_as_successful_buy": False,
+        "reason": plan.reason,
+    }
+    append_ledger_event(ledger_path, event)
 
 
 def submit_live_order(

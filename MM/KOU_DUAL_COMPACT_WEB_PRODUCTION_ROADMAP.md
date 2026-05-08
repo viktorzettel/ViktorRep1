@@ -2853,3 +2853,26 @@ Sources checked on 2026-05-01:
 - Polymarket CLOB V2 migration docs
 - Polymarket April 28, 2026 exchange-upgrade help article
 - Polymarket geographic-restrictions docs
+
+## 2026-05-08 VPS Tiny-Live Readiness Update
+
+Current VPS status:
+
+- AWS Ireland VPS path is validated with `browser-poly-chainlink`.
+- Latest 4h VPS dry run completed cleanly with fresh source age, low quote latency, no stale-source periods above `10s`, and one v3 exec-guard signal.
+- The same session replayed under plain v2 would have produced more buys, but many were near-strike/late-window trades that v3 intentionally blocks.
+- v3 remains the preferred first live-money candidate because the first live test should validate execution safety, not maximize trade count.
+
+Execution status:
+
+- [polymarket_token_sniper.py](/Users/viktorzettel/Downloads/ViktorAI/MM/polymarket_token_sniper.py) now has a CLOB V2 market-order submit path behind explicit live arming.
+- [deployment/vps/run_4h_live_tiny.sh](/Users/viktorzettel/Downloads/ViktorAI/MM/deployment/vps/run_4h_live_tiny.sh) starts the supervised tiny live session.
+- The live launcher refuses to run unless `KOU_I_UNDERSTAND_REAL_MONEY=YES` is set.
+- Hard caps remain `1 pUSD/order`, `4 pUSD/session`, `4 orders/session`, `FOK` only.
+- [deployment/vps/env_fingerprint.py](/Users/viktorzettel/Downloads/ViktorAI/MM/deployment/vps/env_fingerprint.py) compares local and VPS `.env` values using fingerprints only, without printing secrets.
+
+Data capture during live:
+
+- Live mode still writes the full research dataset: quotes, markets, grid signals, shadow orders, sniper signals, sniper plans, live results, live ledger, and logs.
+- The first tiny live session should be analyzed as both an execution test and a new forward dataset for v3 review / possible v4 safety design.
+- It is reasonable to wait for a supervised evening window instead of starting during the US open; the operator should watch the first submit and stop on any ambiguous result.

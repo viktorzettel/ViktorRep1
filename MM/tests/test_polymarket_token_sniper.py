@@ -121,6 +121,39 @@ class PolymarketTokenSniperTests(unittest.TestCase):
         self.assertEqual(state.submitted_order_count, 1)
         self.assertAlmostEqual(state.submitted_cost, 0.9)
 
+    def test_session_risk_counts_dry_run_plans_as_cap_usage(self):
+        signal = make_signal(bucket_end=1777939199.0, market_slug="xrp-updown-5m-1777938900")
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp) / "live_orders.jsonl"
+            ledger.write_text(
+                "\n".join(
+                    json.dumps(
+                        {
+                            "event_type": "dry_run_order_plan",
+                            "bucket_end": 1777938000.0 + idx,
+                            "market_slug": f"xrp-updown-5m-{1777937700 + idx}",
+                            "side": "yes",
+                            "estimated_cost": 1.0,
+                            "real_order_submitted": False,
+                        }
+                    )
+                    for idx in range(4)
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            state = sniper.session_risk_state(str(ledger), signal)
+            plan = sniper.build_dry_run_plan(
+                signal,
+                sniper.SniperLimits(max_session_cost=4.0, max_session_orders=4),
+                env_file=".env",
+                ledger_path=str(ledger),
+            )
+        self.assertEqual(state.planned_order_count, 4)
+        self.assertAlmostEqual(state.planned_cost, 4.0)
+        self.assertFalse(plan.allow_submit)
+        self.assertEqual(plan.reason, "max_session_orders_reached")
+
     def test_build_plan_stops_before_network_when_bucket_used(self):
         signal = make_signal()
         with tempfile.TemporaryDirectory() as tmp:
@@ -175,6 +208,24 @@ class PolymarketTokenSniperTests(unittest.TestCase):
             )
         self.assertFalse(plan.allow_submit)
         self.assertEqual(plan.reason, "max_session_orders_reached")
+
+    def test_record_dry_run_plan_writes_cap_ledger_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp) / "live_orders.jsonl"
+            plan = make_plan()
+            sniper.record_dry_run_order_plan(
+                plan,
+                ledger_path=str(ledger),
+                session_id="session-1",
+                shadow_order_id="shadow-1",
+            )
+            rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+            state = sniper.session_risk_state(str(ledger), make_signal(bucket_end=999.0, market_slug="other"))
+        self.assertEqual(rows[0]["event_type"], "dry_run_order_plan")
+        self.assertFalse(rows[0]["real_order_submitted"])
+        self.assertFalse(rows[0]["counts_as_successful_buy"])
+        self.assertEqual(state.planned_order_count, 1)
+        self.assertAlmostEqual(state.planned_cost, 0.9)
 
     def test_live_submit_requires_explicit_ack(self):
         with tempfile.TemporaryDirectory() as tmp:

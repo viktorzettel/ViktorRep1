@@ -1,10 +1,10 @@
 # Kou XRP Production Finish Line
 
-Last updated: 2026-05-03
+Last updated: 2026-05-08
 
 ## Current State
 
-The bot is close to a production-readiness decision, but it is not live-money ready yet.
+The bot is close to a production-readiness decision. The research/shadow stack is proven enough for a tiny supervised live-money execution test, but not for unattended production trading.
 
 What works:
 
@@ -406,7 +406,7 @@ Hard live caps:
 - no order if visible ask size is below intended order size
 - no order if the token appears sold out / not executable
 - no order if visible book ask is above the signal max entry or sniper max entry
-- no order if `book_ask_price - endpoint_buy_price > 0.03`
+- `book_ask_price - endpoint_buy_price` is recorded as a diagnostic, but no longer blocks the sniper by itself; the live sniper uses visible book ask as the executable price.
 - no order after an order submit error until the session is manually reviewed
 
 Current implementation status:
@@ -427,6 +427,19 @@ Current implementation status:
 - Live submission writes a `live_order_plan` ledger row before submit and a `live_order_submitted` row after the response.
 - Ambiguous/failed/partial-looking responses raise a stop-required error and must end the session until manually reviewed.
 - Non-executable plans and sold-out/no-ask states are explicitly ledgered as not submitted and do not count as successful buys.
+- VPS live launcher added: [deployment/vps/run_4h_live_tiny.sh](/Users/viktorzettel/Downloads/ViktorAI/MM/deployment/vps/run_4h_live_tiny.sh).
+  - refuses to start unless `KOU_I_UNDERSTAND_REAL_MONEY=YES`
+  - uses the validated `browser-poly-chainlink` source path
+  - uses the current exec-guard candidate
+  - uses `--sniper-mode live --sniper-live-ack`
+  - hard caps `1 pUSD/order`, `4 pUSD/session`, `4 orders/session`
+  - uses `FOK` so non-fillable orders should fail rather than rest
+- Safe `.env` comparison helper added: [deployment/vps/env_fingerprint.py](/Users/viktorzettel/Downloads/ViktorAI/MM/deployment/vps/env_fingerprint.py).
+  - prints only short SHA-256 fingerprints and value lengths
+  - use it on Mac and VPS to confirm the five Polymarket credential values match without exposing secrets
+- Live sessions still capture the full research dataset needed for v3 review and v4 design:
+  - quotes, markets, grid signals, shadow orders, sniper signals, sniper plans, live results, live ledger, and process logs
+  - after the first real-money run, analyze both execution behavior and skipped/accepted candidate signals before changing v3 guards
 - The private key pasted in chat should be treated as compromised; use a fresh tiny wallet or rotate/move funds before any live run.
 
 Execution assumptions:
@@ -442,30 +455,28 @@ Next engineering steps:
    - `--sniper-mode signal` writes `sniper_signals.jsonl`
    - `--sniper-mode dry-run` writes `sniper_signals.jsonl`, calls the sniper planner, and writes `sniper_plans.jsonl`
    - `--sniper-mode live` can call the live CLOB V2 sniper, but only with `--sniper-live-ack`
-2. Run one live execution rehearsal with no submit:
+2. Dry-run execution rehearsal has now been completed on the VPS with:
    - real source
    - real Polymarket market resolution
    - real CLOB quote/book checks
    - real session ledger
-   - no `--live`
-3. Run one explicit `--live --i-understand-real-money` test only after the rehearsal produces a clean plan.
+   - no live submit
+3. Next eligible step is one explicit tiny live test using [deployment/vps/run_4h_live_tiny.sh](/Users/viktorzettel/Downloads/ViktorAI/MM/deployment/vps/run_4h_live_tiny.sh).
 4. Watch the first live order manually and stop after any unexpected response.
 
-Recommended dry-run handoff for the next supervised rehearsal:
+Recommended live command for the next supervised tiny test on VPS:
 
 ```bash
-python kou_polymarket_live_capture.py \
-  --session-id "$SESSION_ID" \
-  --validation-profile \
-  --assets xrp \
-  --shadow-candidate analysis/autoresearch_kou/candidates/xrp_only_ultra_safe_v1_near_strike_exec_guard.py \
-  --sniper-mode dry-run \
-  --sniper-order-size 1 \
-  --sniper-max-order-cost 1 \
-  --sniper-max-session-cost 4 \
-  --sniper-max-session-orders 4 \
-  --sniper-require-geoblock-clear
+cd ~/kou-bot
+KOU_I_UNDERSTAND_REAL_MONEY=YES nohup bash deployment/vps/run_4h_live_tiny.sh > vps_live_run.out 2>&1 &
+echo $! > vps_live_run.pid
 ```
+
+Operator note:
+
+- It is reasonable to wait until a supervised evening window instead of starting during the US open.
+- Higher-volatility US hours may create more signals, but the first live test is primarily an execution-path test, not a profit-maximization run.
+- The operator should be present, should watch the first submit, and should stop immediately on an ambiguous response.
 
 ## Points Still To Decide
 
@@ -504,14 +515,12 @@ Most of the research logic is clear. The remaining unclear points are execution 
 
 ## Real-Money Blockers
 
-Do not run the supervised live session until these are solved:
+Do not run unattended production trading until these are solved:
 
 - Fresh/rotated tiny wallet or explicit acceptance that the pasted private key is compromised.
 - pUSD collateral and wallet approvals confirmed in the exact trading wallet.
 - Geoblock endpoint clear from the real operating environment.
-- Tiny-size execution test with confirmed fill behavior.
-- Signal handoff from the exec-guard candidate into `polymarket_token_sniper.py`.
-- Dry-run execution rehearsal with real CLOB V2 quote checks and session ledger.
+- Tiny-size execution test with confirmed real response/fill behavior.
 - Manual operator present for the full tiny session.
 
-The read-only/shadow stack is research-grade. The real-money bot is a separate integration step.
+The read-only/shadow stack is research-grade. The next live-money step is a deliberately tiny supervised execution test, not production automation.
