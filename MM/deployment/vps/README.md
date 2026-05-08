@@ -132,6 +132,18 @@ KOU_I_UNDERSTAND_REAL_MONEY=YES nohup bash deployment/vps/run_4h_live_tiny.sh > 
 echo $! > vps_live_run.pid
 ```
 
+For a one-order execution test that auto-stops after 3 hours:
+
+```bash
+cd ~/kou-bot
+KOU_I_UNDERSTAND_REAL_MONEY=YES \
+RUNTIME_SECONDS=10800 \
+SNIPER_MAX_SESSION_ORDERS=1 \
+SNIPER_MAX_SESSION_COST=1 \
+nohup bash deployment/vps/run_4h_live_tiny.sh > vps_live_run.out 2>&1 &
+echo $! > vps_live_run.pid
+```
+
 Health check:
 
 ```bash

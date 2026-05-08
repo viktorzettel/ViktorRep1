@@ -8,6 +8,11 @@ PORT="${PORT:-8071}"
 RUNTIME_SECONDS="${RUNTIME_SECONDS:-14400}"
 SESSION_ID="${SESSION_ID:-$(date -u +"%Y%m%dT%H%M%SZ")}"
 OUT_DIR="$APP_DIR/data/live_capture/$SESSION_ID"
+SNIPER_ORDER_SIZE="${SNIPER_ORDER_SIZE:-1}"
+SNIPER_MAX_ORDER_COST="${SNIPER_MAX_ORDER_COST:-1}"
+SNIPER_MAX_SESSION_COST="${SNIPER_MAX_SESSION_COST:-4}"
+SNIPER_MAX_SESSION_ORDERS="${SNIPER_MAX_SESSION_ORDERS:-4}"
+SNIPER_ORDER_TYPE="${SNIPER_ORDER_TYPE:-FOK}"
 
 if [ "${KOU_I_UNDERSTAND_REAL_MONEY:-}" != "YES" ]; then
   echo "Refusing to start live mode."
@@ -31,7 +36,7 @@ trap cleanup EXIT
 
 echo "Starting VPS 4h TINY LIVE session: $SESSION_ID"
 echo "Output: $OUT_DIR"
-echo "Hard caps: 1 pUSD/order, 4 pUSD/session, 4 orders/session, FOK only"
+echo "Hard caps: ${SNIPER_MAX_ORDER_COST} pUSD/order, ${SNIPER_MAX_SESSION_COST} pUSD/session, ${SNIPER_MAX_SESSION_ORDERS} orders/session, ${SNIPER_ORDER_TYPE} only"
 
 "$PYTHON" kou_dual_compact_web.py \
   --port "$PORT" \
@@ -60,11 +65,11 @@ sleep 10
   --shadow-candidate analysis/autoresearch_kou/candidates/xrp_only_ultra_safe_v1_near_strike_exec_guard.py \
   --sniper-mode live \
   --sniper-live-ack \
-  --sniper-order-size 1 \
-  --sniper-max-order-cost 1 \
-  --sniper-max-session-cost 4 \
-  --sniper-max-session-orders 4 \
-  --sniper-order-type FOK \
+  --sniper-order-size "$SNIPER_ORDER_SIZE" \
+  --sniper-max-order-cost "$SNIPER_MAX_ORDER_COST" \
+  --sniper-max-session-cost "$SNIPER_MAX_SESSION_COST" \
+  --sniper-max-session-orders "$SNIPER_MAX_SESSION_ORDERS" \
+  --sniper-order-type "$SNIPER_ORDER_TYPE" \
   --sniper-require-geoblock-clear \
   --max-runtime-seconds "$RUNTIME_SECONDS" \
   > "$OUT_DIR/polymarket_capture.log" 2>&1 &

@@ -472,11 +472,144 @@ KOU_I_UNDERSTAND_REAL_MONEY=YES nohup bash deployment/vps/run_4h_live_tiny.sh > 
 echo $! > vps_live_run.pid
 ```
 
+For the first wallet/execution check, prefer a one-order variant:
+
+```bash
+cd ~/kou-bot
+KOU_I_UNDERSTAND_REAL_MONEY=YES \
+RUNTIME_SECONDS=10800 \
+SNIPER_MAX_SESSION_ORDERS=1 \
+SNIPER_MAX_SESSION_COST=1 \
+nohup bash deployment/vps/run_4h_live_tiny.sh > vps_live_run.out 2>&1 &
+echo $! > vps_live_run.pid
+```
+
+This still waits for a valid v3 exec-guard signal. If no signal appears in 3 hours, it should stop without placing an order.
+
 Operator note:
 
 - It is reasonable to wait until a supervised evening window instead of starting during the US open.
 - Higher-volatility US hours may create more signals, but the first live test is primarily an execution-path test, not a profit-maximization run.
 - The operator should be present, should watch the first submit, and should stop immediately on an ambiguous response.
+
+## First Real-Money Execution
+
+Session:
+
+- [data/live_capture/20260508T182926Z](/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/20260508T182926Z)
+- VPS source: `browser-poly-chainlink`
+- Candidate: `xrp_only_ultra_safe_v1_near_strike_exec_guard`
+- Mode: supervised tiny live test, one order only
+
+Execution result:
+
+- Signal: `NO`
+- Market: `xrp-updown-5m-1778269200`
+- Plan time: `2026-05-08T19:44:48Z`
+- Submit time: `2026-05-08T19:44:49Z`
+- Plan-to-submit delay: about `0.612s`
+- Entry/book ask: `0.98`
+- Submitted amount/cost: `1.47 pUSD`
+- Requested size: `1.5`
+- Order type: `FOK`
+- CLOB status: `matched`
+- CLOB success: `true`
+- Real order submitted: `true`
+- Transaction hash recorded in `sniper_live_ledger.jsonl`
+
+Outcome from captured price stream:
+
+- Closest expiry sample: `2026-05-08T19:44:59.001Z`
+- Price: `1.4201`
+- Strike: `1.4207`
+- Result: `NO`
+- The real `NO` buy appears correct from the captured Polymarket/Chainlink price stream.
+
+Important engineering lesson:
+
+- The first attempt at `$1` failed safely because CLOB V2 rejected a `$0.98` market BUY as below the `$1` minimum.
+- [polymarket_token_sniper.py](/Users/viktorzettel/Downloads/ViktorAI/MM/polymarket_token_sniper.py) was fixed so market BUY amount is treated as pUSD amount and floored to the CLOB minimum where needed.
+- The successful live order confirms wallet auth, CLOB V2 submit, pUSD collateral, token resolution, FOK matching, and ledger recording all work in the supervised tiny path.
+
+## V4 Safety Ideas
+
+Current v3 behavior:
+
+- v3 is `ultra-safe + conservative near-strike veto + stale-source guard + executable-book guard`.
+- It is doing the intended job: it protects against stale source, missing/uncertain book, sold-out states, market mismatch, and razor-thin near-strike events.
+- The cost is sparse trading. Recent VPS sessions show the bot may produce only about one buy candidate every several hours, while plain v2 would have bought many more events.
+- Plain v2 is not a safe live replacement because it accepts many very close late-window trades. Some won in replay, but they are exactly the class that can flip on tiny source/settlement differences.
+
+V4 goal:
+
+- Keep v3-level win quality, or improve it.
+- Increase accepted buys by relaxing only the rules that are overblocking clean winners.
+- Do not relax execution hygiene: fresh source, correct market, visible book ask, enough visible size, and clear CLOB response should remain non-negotiable.
+
+Potential v4 paths to replay before coding:
+
+1. Light near-strike challenger:
+   - Replace conservative veto `30s < 0.0004`, `10s < 0.0006` with light veto `30s < 0.0003`, `10s < 0.0005`.
+   - Reason: observed source differences are often around `0.0001-0.0003`, so conservative v3 may be discarding too many valid clean moves.
+   - Risk: if this reopens losses, keep v3.
+
+2. Conditional near-strike gray zone:
+   - Keep an absolute no-trade zone very close to strike.
+   - Add a gray zone where near-strike trades are allowed only if:
+     - source age and model age are excellent, for example `<1.5s`
+     - 60s margin improvement is strong
+     - adverse 60s exposure is near zero
+     - book ask is not expensive
+   - Reason: not all near-strike events are equal. A strong clean trend at `0.00035` from strike may be safer than a choppy event at `0.0006`.
+
+3. Replace hard 60s margin threshold with tiered rules:
+   - Current ultra-safe requires strong `path_60s_margin_z_change >= 1.25`.
+   - V4 could allow slightly lower 60s improvement if other features are excellent, such as high safety score, low adverse exposure, fresh source, and larger strike distance.
+   - Reason: v3 may be throwing away clean late breakouts that did not have enough 60s runway.
+
+4. Safety-score tiering:
+   - Current minimum safety score is `87`.
+   - V4 could test:
+     - normal path: keep `>=87`
+     - cleaner non-near-strike path: allow `>=84-85`
+     - near-strike path: require `>=90`
+   - Reason: one global score threshold may be too blunt.
+
+5. Execution cap audit:
+   - Many missed v3 trades are blocked by entry caps such as `0.94`, `0.96`, or `0.98`.
+   - V4 should replay whether these caps are still optimal with real book ask data, not endpoint price.
+   - Conservative version: keep max `0.98`, but allow a few threshold/side cells to use `0.98` instead of `0.94/0.96` when all context is excellent.
+   - Avoid jumping to `0.99` until replay proves it; `0.99` gives very little reward for nearly the same failure risk.
+
+6. Book/endpoint delta as diagnostic, not candidate veto:
+   - The sniper now trusts visible book ask as the executable price.
+   - V4 should test removing `book_endpoint_delta > 0.03` from the shadow candidate as a hard veto, or making it a warning only, because book ask is the actual executable input.
+   - Keep missing book, missing size, and book ask above cap as hard vetoes.
+
+7. Time-window expansion with stricter context:
+   - v3 mostly fires very late.
+   - Test whether allowing slightly earlier entries, for example `30-60s` left, increases count without hurting wins.
+   - Earlier entries should require stronger trend persistence and lower entry price, because they have more time to reverse.
+
+8. Two-lane v4:
+   - Lane A: current v3 strict path, unchanged.
+   - Lane B: added opportunity path that is only active when the event is not near-strike, source is very fresh, book is clean, and price/margin trend is strong.
+   - This avoids weakening the proven v3 lane while adding a carefully bounded way to catch missed clean winners.
+
+Suggested process:
+
+1. Finish/copy the current tiny live execution session.
+2. Analyze all v3 rejects, not just v3 accepts.
+3. Build replay-only v4 challengers from the ideas above.
+4. Compare v3 vs v4 on:
+   - wins/losses
+   - trade count
+   - skipped winners recovered
+   - any old loss reopened
+   - near-strike distribution
+   - average entry and ROI
+   - real execution failures or CLOB rejects
+5. Only promote a v4 if it clearly adds trade count without reopening the close-event loss pattern.
 
 ## Points Still To Decide
 
@@ -489,8 +622,9 @@ Most of the research logic is clear. The remaining unclear points are execution 
   - final bot still needs either a fixed no-browser RTDS adapter or a supervised headless browser adapter, plus reconnect metrics and stale-source alerts
 - Live execution SDK:
   - production uses CLOB V2 / official `py-clob-client-v2`
-  - market order submit is wired but not yet tested against a real tiny order
-  - still need to inspect exact fill/status response shape from a real `FOK`/`FAK` attempt
+  - market order submit has now been tested once with a real tiny `FOK` order
+  - exact real response shape is now captured in `sniper_live_ledger.jsonl` and `sniper_results.jsonl`
+  - still need more tiny samples before any scaling or unattended mode
 - Signal handoff:
   - current implementation writes JSONL and can call the sniper in-process
   - keep one-order-per-bucket idempotency in the sniper
@@ -520,7 +654,7 @@ Do not run unattended production trading until these are solved:
 - Fresh/rotated tiny wallet or explicit acceptance that the pasted private key is compromised.
 - pUSD collateral and wallet approvals confirmed in the exact trading wallet.
 - Geoblock endpoint clear from the real operating environment.
-- Tiny-size execution test with confirmed real response/fill behavior.
+- More than one tiny-size execution sample before any scaling beyond supervised tests.
 - Manual operator present for the full tiny session.
 
-The read-only/shadow stack is research-grade. The next live-money step is a deliberately tiny supervised execution test, not production automation.
+The read-only/shadow stack is research-grade. The live-money path has one successful tiny execution, but this is still supervised testing, not unattended production automation.

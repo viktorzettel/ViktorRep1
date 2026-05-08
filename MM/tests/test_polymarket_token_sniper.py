@@ -48,7 +48,7 @@ def make_plan(**overrides):
         "market_slug": signal.market_slug,
         "token_quote": quote,
         "requested_size": 1.0,
-        "estimated_cost": 0.9,
+        "estimated_cost": 1.0,
         "checks": {},
     }
     payload.update(overrides)
@@ -225,7 +225,7 @@ class PolymarketTokenSniperTests(unittest.TestCase):
         self.assertFalse(rows[0]["real_order_submitted"])
         self.assertFalse(rows[0]["counts_as_successful_buy"])
         self.assertEqual(state.planned_order_count, 1)
-        self.assertAlmostEqual(state.planned_cost, 0.9)
+        self.assertAlmostEqual(state.planned_cost, 1.0)
 
     def test_live_submit_requires_explicit_ack(self):
         with tempfile.TemporaryDirectory() as tmp:

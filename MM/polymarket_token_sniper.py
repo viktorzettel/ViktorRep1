@@ -67,6 +67,7 @@ class SniperLimits:
     max_order_cost: float = 1.0
     max_session_cost: float = 4.0
     max_session_orders: int = 4
+    min_market_buy_amount: float = 1.0
     max_entry_price: float = 0.98
     min_time_left_s: float = 5.0
     max_source_age_s: float = 3.0
@@ -500,15 +501,20 @@ def build_dry_run_plan(
         return ExecutionPlan(False, "dry_run_no_order", "quote_above_signal_max_entry", signal, market.slug, quote, limits.order_size, None, checks)
     if quote.entry_price > limits.max_entry_price:
         return ExecutionPlan(False, "dry_run_no_order", "quote_above_sniper_max_entry", signal, market.slug, quote, limits.order_size, None, checks)
-    if quote.book_ask_size < limits.min_visible_ask_size:
-        return ExecutionPlan(False, "dry_run_no_order", "visible_ask_too_small", signal, market.slug, quote, limits.order_size, None, checks)
-    if quote.book_ask_size < limits.order_size:
-        return ExecutionPlan(False, "dry_run_no_order", "visible_ask_below_order_size", signal, market.slug, quote, limits.order_size, None, checks)
     checks["book_endpoint_delta"] = quote.book_endpoint_delta
     checks["book_endpoint_delta_limit_diagnostic"] = limits.max_book_endpoint_delta
 
-    estimated_cost = limits.order_size * quote.entry_price
-    if estimated_cost > limits.max_order_cost:
+    raw_estimated_cost = limits.order_size * quote.entry_price
+    submit_amount = max(raw_estimated_cost, limits.min_market_buy_amount)
+    required_visible_size = submit_amount / quote.entry_price
+    checks["raw_estimated_cost_from_requested_size"] = pm.safe_float(raw_estimated_cost, 6)
+    checks["clob_market_buy_amount"] = pm.safe_float(submit_amount, 6)
+    checks["required_visible_ask_size_for_amount"] = pm.safe_float(required_visible_size, 6)
+    if quote.book_ask_size < limits.min_visible_ask_size:
+        return ExecutionPlan(False, "dry_run_no_order", "visible_ask_too_small", signal, market.slug, quote, limits.order_size, None, checks)
+    if quote.book_ask_size < required_visible_size:
+        return ExecutionPlan(False, "dry_run_no_order", "visible_ask_below_order_size", signal, market.slug, quote, limits.order_size, None, checks)
+    if submit_amount > limits.max_order_cost:
         return ExecutionPlan(
             False,
             "dry_run_no_order",
@@ -517,11 +523,11 @@ def build_dry_run_plan(
             market.slug,
             quote,
             limits.order_size,
-            pm.safe_float(estimated_cost, 6),
+            pm.safe_float(submit_amount, 6),
             checks,
         )
-    if effective_cost + estimated_cost > limits.max_session_cost:
-        checks["session_risk"]["projected_effective_cost"] = pm.safe_float(effective_cost + estimated_cost, 6)
+    if effective_cost + submit_amount > limits.max_session_cost:
+        checks["session_risk"]["projected_effective_cost"] = pm.safe_float(effective_cost + submit_amount, 6)
         return ExecutionPlan(
             False,
             "dry_run_no_order",
@@ -530,7 +536,7 @@ def build_dry_run_plan(
             market.slug,
             quote,
             limits.order_size,
-            pm.safe_float(estimated_cost, 6),
+            pm.safe_float(submit_amount, 6),
             checks,
         )
 
@@ -542,7 +548,7 @@ def build_dry_run_plan(
         market.slug,
         quote,
         limits.order_size,
-        pm.safe_float(estimated_cost, 6),
+        pm.safe_float(submit_amount, 6),
         checks,
     )
 
@@ -600,6 +606,8 @@ def submit_live_order(
         raise RuntimeError("missing_token_quote")
     if plan.estimated_cost is None or plan.estimated_cost <= 0.0:
         raise RuntimeError("missing_estimated_cost")
+    if plan.estimated_cost < 1.0:
+        raise RuntimeError("market_buy_amount_below_clob_minimum")
     if not ledger_path:
         raise RuntimeError("session_ledger_required_for_live")
 

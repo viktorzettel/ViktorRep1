@@ -2876,3 +2876,36 @@ Data capture during live:
 - Live mode still writes the full research dataset: quotes, markets, grid signals, shadow orders, sniper signals, sniper plans, live results, live ledger, and logs.
 - The first tiny live session should be analyzed as both an execution test and a new forward dataset for v3 review / possible v4 safety design.
 - It is reasonable to wait for a supervised evening window instead of starting during the US open; the operator should watch the first submit and stop on any ambiguous result.
+
+## 2026-05-08 First Real-Money Execution Result
+
+The first supervised tiny live execution test succeeded.
+
+Session:
+
+- [data/live_capture/20260508T182926Z](/Users/viktorzettel/Downloads/ViktorAI/MM/data/live_capture/20260508T182926Z)
+- Source: `browser-poly-chainlink`
+- Candidate: `xrp_only_ultra_safe_v1_near_strike_exec_guard`
+- Signal: `NO`
+- Market: `xrp-updown-5m-1778269200`
+- Entry/book ask: `0.98`
+- Submitted cost: `1.47 pUSD`
+- Requested size: `1.5`
+- Order type: `FOK`
+- CLOB response: `success=true`, `status=matched`
+- Plan-to-submit delay: about `0.612s`
+
+Captured expiry outcome:
+
+- Closest expiry sample: `2026-05-08T19:44:59.001Z`
+- Price: `1.4201`
+- Strike: `1.4207`
+- Outcome: `NO`
+- The real `NO` order appears to have been correct from the captured Polymarket/Chainlink stream.
+
+Operational findings:
+
+- Wallet auth, pUSD execution, CLOB V2 market-order submit, token resolution, and ledger recording all worked on the VPS.
+- The earlier `$1` attempt safely found a CLOB minimum-size issue: a marketable BUY amount of `$0.98` is rejected because CLOB requires at least `$1`.
+- [polymarket_token_sniper.py](/Users/viktorzettel/Downloads/ViktorAI/MM/polymarket_token_sniper.py) now treats live market BUY `amount` as pUSD and floors to the minimum where required.
+- This was an execution-path milestone, not proof that unattended production trading is ready.
